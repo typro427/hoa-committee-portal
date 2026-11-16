@@ -1,0 +1,505 @@
+// HOA Committee Portal — database schema
+// Historical records (meetings, minutes, revisions, tasks, audit logs) are never hard-deleted.
+// Members and committees are deactivated/archived instead of removed.
+
+generator client {
+  provider   = "prisma-client-js"
+  // Rust-free client: queries run through the node-postgres driver adapter (@prisma/adapter-pg).
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum CommitteeStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CommitteeRole {
+  CHAIR
+  SECRETARY
+  MEMBER
+}
+
+enum MeetingType {
+  REGULAR
+  SPECIAL
+  ANNUAL_PLANNING
+  EMERGENCY
+  OTHER
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  POSTPONED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  GUEST
+}
+
+enum AgendaSection {
+  CALL_TO_ORDER
+  ROLL_CALL
+  APPROVAL_OF_PREVIOUS_MINUTES
+  OLD_BUSINESS
+  NEW_BUSINESS
+  COMMITTEE_REPORTS
+  PROJECT_UPDATES
+  RECOMMENDATIONS
+  OTHER_BUSINESS
+  ADJOURNMENT
+}
+
+enum MinutesStatus {
+  DRAFT
+  SUBMITTED
+  CHANGES_REQUESTED
+  APPROVED
+  PUBLISHED
+}
+
+enum MotionOutcome {
+  PASSED
+  FAILED
+  TABLED
+  WITHDRAWN
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  WAITING_ON_INFORMATION
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum DocumentCategory {
+  MEETING_DOCUMENTS
+  FINANCIAL_REPORTS
+  VENDOR_QUOTES
+  PROJECT_DOCUMENTS
+  POLICIES_AND_PROCEDURES
+  GENERAL
+  ARCHIVED
+}
+
+enum AdminStatus {
+  ACTIVE
+  DISABLED
+}
+
+// ---------- Models ----------
+
+model Organization {
+  id                    String   @id @default(uuid()) @db.Uuid
+  name                  String
+  slug                  String   @unique
+  logoUrl               String?  @map("logo_url")
+  timezone              String   @default("America/New_York")
+  tagline               String?  @default("Organized Committees. Better Decisions.")
+  sessionTimeoutMinutes Int      @default(60) @map("session_timeout_minutes")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  committees Committee[]
+  members    Member[]
+  auditLogs  AuditLog[]
+
+  @@map("organizations")
+}
+
+model Committee {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  status         CommitteeStatus @default(ACTIVE)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships  CommitteeMembership[]
+  meetings     Meeting[]
+  tasks        Task[]
+  documents    Document[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+  @@map("committees")
+}
+
+model Member {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  firstName      String       @map("first_name")
+  lastName       String       @map("last_name")
+  email          String?
+  phone          String?
+  /// Argon2id hash of the PIN. Never returned from any query used by the UI.
+  pinHash        String?      @map("pin_hash")
+  /// Keyed HMAC-SHA256 of the PIN (PIN_HASH_SECRET) for O(1) lookup; the Argon2id hash is still verified.
+  pinLookup      String?      @unique @map("pin_lookup")
+  pinGeneratedAt DateTime?    @map("pin_generated_at")
+  status         MemberStatus @default(ACTIVE)
+  lastLoginAt    DateTime?    @map("last_login_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships         CommitteeMembership[]
+  sessions            Session[]
+  attendance          MeetingAttendance[]
+  assignedTasks       Task[]                @relation("TaskAssignee")
+  createdTasks        Task[]                @relation("TaskCreatorMember")
+  completedTasks      Task[]                @relation("TaskCompleter")
+  preparedMinutes     MeetingMinutes[]      @relation("MinutesPreparedBy")
+  approvedMinutes     MeetingMinutes[]      @relation("MinutesApprovedBy")
+  uploadedDocuments   Document[]            @relation("DocUploaderMember")
+  createdMeetings     Meeting[]             @relation("MeetingCreatorMember")
+  motionsMoved        Motion[]              @relation("MotionMovedBy")
+  motionsSeconded     Motion[]              @relation("MotionSecondedBy")
+  minuteRevisions     MeetingMinuteRevision[]
+  auditLogs           AuditLog[]
+
+  @@index([organizationId, status])
+  @@index([lastName, firstName])
+  @@map("members")
+}
+
+model CommitteeMembership {
+  id                String        @id @default(uuid()) @db.Uuid
+  committeeId       String        @map("committee_id") @db.Uuid
+  memberId          String        @map("member_id") @db.Uuid
+  role              CommitteeRole @default(MEMBER)
+  /// Committee position title shown in the directory (e.g. "Treasurer"). Optional.
+  position          String?
+  /// Administrator may allow a secretary to publish minutes.
+  canPublishMinutes Boolean       @default(false) @map("can_publish_minutes")
+  isActive          Boolean       @default(true) @map("is_active")
+  joinedAt          DateTime      @default(now()) @map("joined_at")
+  leftAt            DateTime?     @map("left_at")
+
+  committee Committee @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@unique([committeeId, memberId])
+  @@index([memberId, isActive])
+  // "One active chair per committee" is additionally enforced by a partial unique index
+  // created in the migration: committee_memberships_one_active_chair.
+  @@map("committee_memberships")
+}
+
+model Meeting {
+  id                   String        @id @default(uuid()) @db.Uuid
+  committeeId          String        @map("committee_id") @db.Uuid
+  title                String
+  meetingType          MeetingType   @default(REGULAR) @map("meeting_type")
+  meetingDate          DateTime      @map("meeting_date") @db.Date
+  startTime            String?       @map("start_time") // "HH:MM" 24h
+  endTime              String?       @map("end_time")
+  location             String?
+  description          String?
+  notes                String?
+  status               MeetingStatus @default(SCHEDULED)
+  createdByMemberId    String?       @map("created_by") @db.Uuid
+  createdByAdminId     String?       @map("created_by_admin") @db.Uuid
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  committee       Committee           @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  createdByMember Member?             @relation("MeetingCreatorMember", fields: [createdByMemberId], references: [id])
+  createdByAdmin  AdminUser?          @relation("MeetingCreatorAdmin", fields: [createdByAdminId], references: [id])
+  attendance      MeetingAttendance[]
+  agendaItems     AgendaItem[]
+  minutes         MeetingMinutes?
+  tasks           Task[]
+  documents       Document[]
+
+  @@index([committeeId, meetingDate])
+  @@index([meetingDate])
+  @@map("meetings")
+}
+
+model MeetingAttendance {
+  id               String           @id @default(uuid()) @db.Uuid
+  meetingId        String           @map("meeting_id") @db.Uuid
+  memberId         String?          @map("member_id") @db.Uuid
+  attendeeName     String           @map("attendee_name")
+  attendanceStatus AttendanceStatus @map("attendance_status")
+  notes            String?
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  member  Member? @relation(fields: [memberId], references: [id])
+
+  @@unique([meetingId, memberId])
+  @@index([meetingId])
+  @@map("meeting_attendance")
+}
+
+model AgendaItem {
+  id           String        @id @default(uuid()) @db.Uuid
+  meetingId    String        @map("meeting_id") @db.Uuid
+  section      AgendaSection
+  title        String
+  description  String?
+  displayOrder Int           @map("display_order")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  meeting   Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([meetingId, displayOrder])
+  @@map("agendas")
+}
+
+model MeetingMinutes {
+  id               String        @id @default(uuid()) @db.Uuid
+  meetingId        String        @unique @map("meeting_id") @db.Uuid
+  status           MinutesStatus @default(DRAFT)
+  chairpersonName  String?       @map("chairperson_name")
+  secretaryName    String?       @map("secretary_name")
+  callToOrder      String?       @map("call_to_order")
+  previousMinutes  String?       @map("previous_minutes")
+  oldBusiness      String?       @map("old_business")
+  newBusiness      String?       @map("new_business")
+  committeeReports String?       @map("committee_reports")
+  projectUpdates   String?       @map("project_updates")
+  recommendations  String?
+  otherBusiness    String?       @map("other_business")
+  adjournmentTime  String?       @map("adjournment_time")
+  closingNotes     String?       @map("closing_notes")
+  reviewComments   String?       @map("review_comments")
+  preparedById     String?       @map("prepared_by") @db.Uuid
+  preparedByAdminId String?      @map("prepared_by_admin") @db.Uuid
+  submittedAt      DateTime?     @map("submitted_at")
+  approvedById     String?       @map("approved_by") @db.Uuid
+  approvedByAdminId String?      @map("approved_by_admin") @db.Uuid
+  approvedByName   String?       @map("approved_by_name")
+  approvedAt       DateTime?     @map("approved_at")
+  publishedAt      DateTime?     @map("published_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  meeting         Meeting                 @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  preparedBy      Member?                 @relation("MinutesPreparedBy", fields: [preparedById], references: [id])
+  approvedBy      Member?                 @relation("MinutesApprovedBy", fields: [approvedById], references: [id])
+  preparedByAdmin AdminUser?              @relation("MinutesPreparedByAdmin", fields: [preparedByAdminId], references: [id])
+  approvedByAdmin AdminUser?              @relation("MinutesApprovedByAdmin", fields: [approvedByAdminId], references: [id])
+  motions         Motion[]
+  revisions       MeetingMinuteRevision[]
+
+  @@index([status])
+  @@map("meeting_minutes")
+}
+
+model Motion {
+  id            String         @id @default(uuid()) @db.Uuid
+  minutesId     String         @map("minutes_id") @db.Uuid
+  description   String
+  movedById     String?        @map("moved_by") @db.Uuid
+  movedByName   String?        @map("moved_by_name")
+  secondedById  String?        @map("seconded_by") @db.Uuid
+  secondedByName String?       @map("seconded_by_name")
+  votesFor      Int            @default(0) @map("votes_for")
+  votesAgainst  Int            @default(0) @map("votes_against")
+  abstentions   Int            @default(0)
+  outcome       MotionOutcome  @default(PASSED)
+  notes         String?
+  displayOrder  Int            @default(0) @map("display_order")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  minutes    MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  movedBy    Member?        @relation("MotionMovedBy", fields: [movedById], references: [id])
+  secondedBy Member?        @relation("MotionSecondedBy", fields: [secondedById], references: [id])
+
+  @@index([minutesId])
+  @@map("motions")
+}
+
+model Task {
+  id                  String       @id @default(uuid()) @db.Uuid
+  committeeId         String       @map("committee_id") @db.Uuid
+  meetingId           String?      @map("meeting_id") @db.Uuid
+  title               String
+  description         String?
+  assignedMemberId    String?      @map("assigned_member_id") @db.Uuid
+  createdByMemberId   String?      @map("created_by") @db.Uuid
+  createdByAdminId    String?      @map("created_by_admin") @db.Uuid
+  priority            TaskPriority @default(NORMAL)
+  status              TaskStatus   @default(NOT_STARTED)
+  dueDate             DateTime?    @map("due_date") @db.Date
+  completedAt         DateTime?    @map("completed_at")
+  completedByMemberId String?      @map("completed_by") @db.Uuid
+  completedByName     String?      @map("completed_by_name")
+  completionNotes     String?      @map("completion_notes")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  committee       Committee  @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  meeting         Meeting?   @relation(fields: [meetingId], references: [id])
+  assignedMember  Member?    @relation("TaskAssignee", fields: [assignedMemberId], references: [id])
+  createdByMember Member?    @relation("TaskCreatorMember", fields: [createdByMemberId], references: [id])
+  createdByAdmin  AdminUser? @relation("TaskCreatorAdmin", fields: [createdByAdminId], references: [id])
+  completedBy     Member?    @relation("TaskCompleter", fields: [completedByMemberId], references: [id])
+  documents       Document[]
+
+  @@index([committeeId, status])
+  @@index([assignedMemberId, status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Document {
+  id                 String           @id @default(uuid()) @db.Uuid
+  committeeId        String           @map("committee_id") @db.Uuid
+  meetingId          String?          @map("meeting_id") @db.Uuid
+  agendaItemId       String?          @map("agenda_item_id") @db.Uuid
+  taskId             String?          @map("task_id") @db.Uuid
+  title              String
+  description        String?
+  category           DocumentCategory @default(GENERAL)
+  originalFilename   String           @map("original_filename")
+  storageKey         String           @unique @map("storage_key")
+  mimeType           String           @map("mime_type")
+  fileSize           Int              @map("file_size")
+  uploadedByMemberId String?          @map("uploaded_by") @db.Uuid
+  uploadedByAdminId  String?          @map("uploaded_by_admin") @db.Uuid
+  /// Soft delete: removed documents stay in storage and the audit trail.
+  removedAt          DateTime?        @map("removed_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  committee        Committee   @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  meeting          Meeting?    @relation(fields: [meetingId], references: [id])
+  agendaItem       AgendaItem? @relation(fields: [agendaItemId], references: [id], onDelete: SetNull)
+  task             Task?       @relation(fields: [taskId], references: [id])
+  uploadedByMember Member?     @relation("DocUploaderMember", fields: [uploadedByMemberId], references: [id])
+  uploadedByAdmin  AdminUser?  @relation("DocUploaderAdmin", fields: [uploadedByAdminId], references: [id])
+
+  @@index([committeeId, category, removedAt])
+  @@index([meetingId])
+  @@index([taskId])
+  @@map("documents")
+}
+
+model MeetingMinuteRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  minutesId      String   @map("minutes_id") @db.Uuid
+  revisionNumber Int      @map("revision_number")
+  snapshotJson   Json     @map("snapshot_json")
+  changedById    String?  @map("changed_by") @db.Uuid
+  changedByAdminId String? @map("changed_by_admin") @db.Uuid
+  changedByName  String?  @map("changed_by_name")
+  changeReason   String?  @map("change_reason")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  minutes        MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Restrict)
+  changedBy      Member?        @relation(fields: [changedById], references: [id])
+  changedByAdmin AdminUser?     @relation(fields: [changedByAdminId], references: [id])
+
+  @@unique([minutesId, revisionNumber])
+  @@map("meeting_minute_revisions")
+}
+
+model AdminUser {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  name         String
+  status       AdminStatus @default(ACTIVE)
+  lastLoginAt  DateTime?   @map("last_login_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  sessions         Session[]
+  meetings         Meeting[]               @relation("MeetingCreatorAdmin")
+  tasks            Task[]                  @relation("TaskCreatorAdmin")
+  documents        Document[]              @relation("DocUploaderAdmin")
+  preparedMinutes  MeetingMinutes[]        @relation("MinutesPreparedByAdmin")
+  approvedMinutes  MeetingMinutes[]        @relation("MinutesApprovedByAdmin")
+  minuteRevisions  MeetingMinuteRevision[]
+  auditLogs        AuditLog[]
+
+  @@map("admin_users")
+}
+
+model Session {
+  id                String     @id @default(uuid()) @db.Uuid
+  memberId          String?    @map("member_id") @db.Uuid
+  adminUserId       String?    @map("admin_user_id") @db.Uuid
+  /// SHA-256 of the random session token; the raw token only lives in the HTTP-only cookie.
+  tokenHash         String     @unique @map("token_hash")
+  activeCommitteeId String?    @map("active_committee_id") @db.Uuid
+  expiresAt         DateTime   @map("expires_at")
+  lastSeenAt        DateTime   @default(now()) @map("last_seen_at")
+  ipAddress         String?    @map("ip_address")
+  userAgent         String?    @map("user_agent")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  member    Member?    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  adminUser AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Failed/successful login attempts, used for rate limiting and temporary lockouts.
+/// Stored in Postgres so limits hold across multiple app instances and restarts.
+model LoginAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String
+  success   Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([key, createdAt])
+  @@map("login_attempts")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  actorMemberId  String?  @map("actor_member_id") @db.Uuid
+  actorAdminId   String?  @map("actor_admin_id") @db.Uuid
+  actorName      String?  @map("actor_name")
+  committeeId    String?  @map("committee_id") @db.Uuid
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String?  @map("entity_id")
+  detailsJson    Json?    @map("details_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorMember  Member?      @relation(fields: [actorMemberId], references: [id])
+  actorAdmin   AdminUser?   @relation(fields: [actorAdminId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([committeeId, createdAt])
+  @@map("audit_logs")
+}

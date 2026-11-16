@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body { @apply bg-slate-100 text-slate-900 antialiased; overflow-x: hidden; }
+
+.prose-minutes { white-space: pre-wrap; overflow-wrap: anywhere; @apply text-[15px] leading-relaxed text-slate-800; }
+
+@media print {
+  .no-print, header, aside, nav { display: none !important; }
+  body { background: white; }
+  .print-area { box-shadow: none !important; border: none !important; }
+}

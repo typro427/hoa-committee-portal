@@ -1,0 +1,57 @@
+# Render Blueprint — HOA Committee Portal
+# New → Blueprint → select this repo. Render creates the web service and the PostgreSQL database.
+# You still need to: (1) fill in the S3_* values, (2) set APP_URL to your final URL.
+
+databases:
+  - name: hoa-portal-db
+    databaseName: hoa_portal
+    user: hoa_portal
+    plan: basic-256mb        # Paid plans include automated daily backups + point-in-time recovery.
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: hoa-committee-portal
+    runtime: node
+    plan: starter            # Free instances sleep; starter keeps the portal responsive.
+    buildCommand: npm ci --include=dev && npm run build
+    # Migrations run ONCE per deploy, before the new version starts — never at app startup.
+    preDeployCommand: npx prisma migrate deploy && npm run db:seed
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hoa-portal-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_AUTH_SECRET
+        generateValue: true
+      - key: PIN_HASH_SECRET
+        generateValue: true   # Never change after PINs are issued — it would invalidate every PIN.
+      - key: SETUP_TOKEN
+        generateValue: true   # Copy from the dashboard to use /admin/setup once; then delete it.
+      - key: ORG_NAME
+        value: "Our HOA"
+      - key: ORG_TIMEZONE
+        value: America/New_York
+      - key: APP_URL
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_FORCE_PATH_STYLE
+        value: "false"
