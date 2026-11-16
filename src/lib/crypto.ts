@@ -11,14 +11,19 @@ const ARGON_OPTS = {
   parallelism: 1,
 } as const;
 
-export const PIN_LENGTH = 8;
+export const PIN_LENGTH = 4;
 
-/** Cryptographically secure 8-digit numeric PIN (no leading-zero bias). */
+/** Cryptographically secure 4-digit numeric PIN (no leading-zero bias). */
 export function generatePin(length = PIN_LENGTH): string {
   let pin = "";
   for (let i = 0; i < length; i++) pin += randomInt(0, 10).toString();
   // Reject trivially guessable patterns (all same digit, straight sequences).
-  if (/^(\d)\1+$/.test(pin) || "0123456789".includes(pin) || "9876543210".includes(pin)) {
+  if (
+    /^(\d)\1+$/.test(pin) || // 1111
+    "0123456789".includes(pin) || "9876543210".includes(pin) || // 1234, 4321
+    /^(\d\d)\1$/.test(pin) || // 1212
+    (length === 4 && /^(19|20)\d\d$/.test(pin)) // years like 1985, 2024
+  ) {
     return generatePin(length);
   }
   return pin;

@@ -27,16 +27,22 @@ export default async function PinsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="PIN Management" description="Each member has a unique 8-digit PIN. PINs are stored only as secure hashes and are shown once, when generated." />
-      <Section title="Generate missing PINs">
+      <PageHeader title="PIN Management" description="Each member has a unique 4-digit PIN. PINs are stored only as secure hashes and are shown once, when generated." />
+      <Section title="Generate PINs in bulk">
         <p className="mb-3 text-sm text-slate-600">{missing} active member{missing === 1 ? "" : "s"} without a PIN.</p>
-        <PinResultForm action={bulkGeneratePins} orgName={org.name} loginUrl={loginUrl} confirm="Generate PINs for every active member who doesn't have one?">
-          <div className="flex flex-wrap gap-2">
-            <Select name="committeeId" defaultValue="" className="w-auto" aria-label="Committee">
-              <option value="">All committees</option>
-              {committees.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-            <SubmitButton pendingText="Generating…" disabled={missing === 0}>Generate PINs</SubmitButton>
+        <PinResultForm action={bulkGeneratePins} orgName={org.name} loginUrl={loginUrl} confirm="Generate PINs now? If “replace existing PINs” is checked, those members' current PINs stop working immediately.">
+          <div className="flex flex-col gap-3">
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              <input type="checkbox" name="replaceExisting" className="mt-0.5 size-4" />
+              <span>Also replace existing PINs <span className="text-slate-500">— use this to move everyone to new 4-digit PINs. Their old PINs stop working right away.</span></span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Select name="committeeId" defaultValue="" className="w-auto" aria-label="Committee">
+                <option value="">All committees</option>
+                {committees.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+              <SubmitButton pendingText="Generating…">Generate PINs</SubmitButton>
+            </div>
           </div>
         </PinResultForm>
       </Section>

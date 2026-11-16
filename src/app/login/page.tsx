@@ -22,7 +22,7 @@ export default async function LoginPage() {
           <h1 className="text-2xl font-bold text-navy-900">Committee Portal</h1>
           <p className="mt-1 text-sm text-slate-500">{org?.tagline ?? "Organized Committees. Better Decisions."}</p>
         </div>
-        <p className="mb-5 text-center text-base text-slate-700">Enter your 8-digit committee PIN</p>
+        <p className="mb-5 text-center text-base text-slate-700">Enter your 4-digit committee PIN</p>
         <PinLogin action={loginWithPin} />
       </div>
       <p className="mt-6 text-center text-sm text-slate-500">

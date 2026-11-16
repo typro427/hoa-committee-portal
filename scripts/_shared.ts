@@ -29,6 +29,7 @@ export function pinLookup(pin: string) {
 
 export function randomPin() {
   let p = "";
-  for (let i = 0; i < 8; i++) p += randomInt(0, 10);
+  for (let i = 0; i < 4; i++) p += randomInt(0, 10);
+  if (/^(\d)\1+$/.test(p) || "0123456789".includes(p) || "9876543210".includes(p)) return randomPin();
   return p;
 }

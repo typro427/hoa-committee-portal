@@ -23,7 +23,7 @@ export async function loginWithPin(_: ActionResult, fd: FormData): Promise<Actio
   const lock = await checkLockout(keys, { global: "pin:global" });
   if (lock.locked) return { ok: false, error: lock.message };
 
-  if (pin.length < 6 || pin.length > 12) {
+  if (pin.length < 4 || pin.length > 12) {
     await recordAttempt([...keys, "pin:global"], false);
     return { ok: false, error: GENERIC_PIN_ERROR };
   }

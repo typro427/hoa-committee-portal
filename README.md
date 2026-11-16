@@ -2,7 +2,7 @@
 
 *Organized Committees. Better Decisions.*
 
-A private, mobile-first workspace for HOA committees. Each member signs in with their own 8-digit PIN and goes straight to their committee's meetings, minutes, documents and tasks. Administrators manage everything from a separate, password-protected admin area.
+A private, mobile-first workspace for HOA committees. Each member signs in with their own 4-digit PIN and goes straight to their committee's meetings, minutes, documents and tasks. Administrators manage everything from a separate, password-protected admin area.
 
 The initial setup creates three committees: **Safety and Security Committee**, **Special Events Committee** and **Architectural Review Board**. They are ordinary data, so you can rename, archive or add committees from **Admin → Committees** without touching code.
 
@@ -12,7 +12,7 @@ The initial setup creates three committees: **Safety and Security Committee**, *
 
 | Area | What it does |
 |---|---|
-| **PIN sign-in** | Individual 8-digit PINs (never stored in plain text: Argon2id hash plus a keyed HMAC lookup), rate limiting, temporary lockouts, HTTP-only session cookies, configurable inactivity timeout. Members on more than one committee pick a committee after signing in. |
+| **PIN sign-in** | Individual 4-digit PINs (never stored in plain text: Argon2id hash plus a keyed HMAC lookup), rate limiting, temporary lockouts, HTTP-only session cookies, configurable inactivity timeout. Members on more than one committee pick a committee after signing in. |
 | **Roles** | Administrator, Chair, Secretary and Member, enforced on the server for every page, action and download. Members can't reach another committee's records by changing URLs or API calls (they get a 404). |
 | **Meetings** | Create, edit, cancel or postpone meetings. Monthly calendar and upcoming/past lists. |
 | **Agenda builder** | Standard 10-section agenda, add/edit/remove/reorder items, attach supporting documents, printable PDF. |
@@ -151,7 +151,7 @@ pg_restore --clean --if-exists --no-owner --dbname "$NEW_DATABASE_URL" hoa-porta
 - PINs are stored as Argon2id hashes, plus an HMAC-SHA256 lookup keyed by `PIN_HASH_SECRET`. A PIN is displayed only at the moment it's generated. Resetting a PIN makes the old one stop working immediately and signs out that member's sessions.
 - Sessions are random 256-bit tokens. Only a keyed hash is stored in the `sessions` table. Cookies are HTTP-only, `Secure` in production, and `SameSite=Lax`. Sessions have a sliding inactivity timeout (Admin → Settings) and a 7-day absolute cap.
 - Deactivating a member, removing them from all committees, or archiving a committee takes effect on their very next request.
-- Login throttling: 5 failures per IP in 15 minutes triggers a lockout. There is also a system-wide brake on PIN guessing. Attempts are stored in Postgres, so limits hold across instances.
+- Login throttling: 5 failures per IP in 15 minutes triggers a lockout. Because a 4-digit PIN has only 10,000 combinations, PIN sign-in also pauses for everyone after 40 failed attempts in an hour across all IPs (members already signed in are unaffected). Attempts are stored in Postgres, so limits hold across instances. Generated PINs avoid easy patterns such as 1111, 1234, 1212 and years.
 - All mutations are Next.js Server Actions, which are POST-only with built-in Origin checks for CSRF protection. Every action re-checks authorization on the server. Zod validates input. Prisma parameterizes all queries. React escapes all output. CSV exports guard against formula injection.
 - Uploads are checked against a file type allow-list (SVG and HTML are excluded) with a magic-byte check and a 25 MB limit. Files are never publicly reachable; every download goes through a permission check.
 - Historical records (meetings, minutes, revisions, tasks, audit logs) are never hard-deleted. Members are deactivated, committees archived and documents soft-removed.

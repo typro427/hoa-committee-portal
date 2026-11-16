@@ -6,7 +6,8 @@ import type { ActionResult } from "@/components/action-form";
 import { FormMessage } from "@/components/action-form";
 import { cn } from "@/lib/utils";
 
-const LEN = 8;
+const LEN = 4; // current PIN length
+const MAX = 8; // older 8-digit PINs keep working until an administrator resets them
 
 export function PinLogin({ action }: { action: (p: ActionResult, fd: FormData) => Promise<ActionResult> }) {
   const [pin, setPin] = useState("");
@@ -16,7 +17,7 @@ export function PinLogin({ action }: { action: (p: ActionResult, fd: FormData) =
     return r;
   }, null);
 
-  const press = (d: string) => setPin((p) => (p.length < LEN ? p + d : p));
+  const press = (d: string) => setPin((p) => (p.length < MAX ? p + d : p));
   const back = () => setPin((p) => p.slice(0, -1));
 
   return (
@@ -26,11 +27,11 @@ export function PinLogin({ action }: { action: (p: ActionResult, fd: FormData) =
         id="pin"
         name="pin"
         value={pin}
-        onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, LEN))}
+        onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, MAX))}
         inputMode="numeric"
         autoComplete="off"
         pattern="\d*"
-        maxLength={LEN}
+        maxLength={MAX}
         autoFocus
         aria-describedby="pin-help"
         className="sr-only"
@@ -40,7 +41,7 @@ export function PinLogin({ action }: { action: (p: ActionResult, fd: FormData) =
         onClick={() => document.getElementById("pin")?.focus()}
         aria-hidden
       >
-        {Array.from({ length: LEN }).map((_, i) => (
+        {Array.from({ length: Math.max(LEN, pin.length) }).map((_, i) => (
           <span
             key={i}
             className={cn(
@@ -50,7 +51,7 @@ export function PinLogin({ action }: { action: (p: ActionResult, fd: FormData) =
           />
         ))}
       </div>
-      <p id="pin-help" className="sr-only">Enter your 8-digit PIN using the keypad or your keyboard.</p>
+      <p id="pin-help" className="sr-only">Enter your 4-digit PIN using the keypad or your keyboard.</p>
 
       <div className="mx-auto grid max-w-xs grid-cols-3 gap-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
@@ -63,7 +64,7 @@ export function PinLogin({ action }: { action: (p: ActionResult, fd: FormData) =
 
       <button
         type="submit"
-        disabled={pin.length !== LEN || pending}
+        disabled={pin.length < LEN || pending}
         className="mx-auto mt-6 flex h-14 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-navy-800 text-lg font-semibold text-white transition hover:bg-navy-700 disabled:opacity-40"
       >
         {pending ? <Loader2 className="size-5 animate-spin" /> : <LockKeyhole className="size-5" />}

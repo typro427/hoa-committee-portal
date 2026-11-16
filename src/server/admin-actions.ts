@@ -64,7 +64,7 @@ const memberSchema = z.object({
 
 async function setPinFor(memberId: string) {
   // Generate until unique (collisions are astronomically rare but handled).
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 200; i++) {
     const pin = generatePin();
     const lookup = pinLookup(pin);
     if (await db.member.findUnique({ where: { pinLookup: lookup }, select: { id: true } })) continue;
@@ -218,9 +218,10 @@ export async function bulkGeneratePins(_: ActionResult, fd: FormData): Promise<A
     const admin = await requireAdmin();
     const org = await getOrganization();
     const committeeId = fd.get("committeeId") ? z.string().uuid().parse(fd.get("committeeId")) : undefined;
+    const replaceExisting = fd.get("replaceExisting") === "on";
     const members = await db.member.findMany({
       where: {
-        organizationId: org.id, status: "ACTIVE", pinHash: null,
+        organizationId: org.id, status: "ACTIVE", ...(replaceExisting ? {} : { pinHash: null }),
         ...(committeeId ? { memberships: { some: { committeeId, isActive: true } } } : {}),
       },
       include: { memberships: { where: { isActive: true }, include: { committee: { select: { name: true } } } } },
@@ -228,12 +229,17 @@ export async function bulkGeneratePins(_: ActionResult, fd: FormData): Promise<A
     });
     const out: { name: string; committees: string; pin: string }[] = [];
     for (const m of members) {
+      const hadPin = !!m.pinHash;
       const pin = await setPinFor(m.id);
       out.push({ name: `${m.firstName} ${m.lastName}`, committees: m.memberships.map((x) => x.committee.name).join(", "), pin });
-      await audit(admin, { action: "pin.generated", entityType: "member", entityId: m.id, details: { bulk: true } });
+      await audit(admin, { action: hadPin ? "pin.reset" : "pin.generated", entityType: "member", entityId: m.id, details: { bulk: true } });
     }
     revalidatePath("/", "layout");
-    return { ok: true, message: out.length ? `Generated ${out.length} PINs.` : "Every active member already has a PIN.", data: { pins: out } };
+    return {
+      ok: true,
+      message: out.length ? `Generated ${out.length} PIN${out.length === 1 ? "" : "s"}.${replaceExisting ? " Old PINs no longer work, and those members were signed out." : ""}` : "Every active member already has a PIN.",
+      data: { pins: out },
+    };
   });
 }
 

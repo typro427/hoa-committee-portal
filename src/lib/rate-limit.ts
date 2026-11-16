@@ -5,10 +5,11 @@ import { db } from "./db";
  * Persistent rate limiting / lockouts backed by Postgres (works across instances).
  * Policy:
  *  - 5 failed attempts from one IP within 15 minutes => locked for the rest of that window.
- *  - 200 failed PIN attempts system-wide within 10 minutes => PIN login paused (distributed brute force).
+ *  - 40 failed PIN attempts system-wide within 60 minutes => PIN login paused for everyone
+ *    (a 4-digit PIN has only 10,000 combinations, so guessing from many IPs must be capped).
  */
 export const LOCKOUT = { maxFailures: 5, windowMinutes: 15 };
-const GLOBAL = { maxFailures: 200, windowMinutes: 10 };
+const GLOBAL = { maxFailures: 40, windowMinutes: 60 };
 
 async function failuresSince(key: string, minutes: number) {
   const since = new Date(Date.now() - minutes * 60_000);
