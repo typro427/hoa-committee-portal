@@ -17,7 +17,7 @@ The initial setup creates three committees: **Safety and Security Committee**, *
 | **Meetings** | Create, edit, cancel or postpone meetings. Monthly calendar and upcoming/past lists. |
 | **Agenda builder** | Standard 10-section agenda, add/edit/remove/reorder items, attach supporting documents, printable PDF. |
 | **Minutes** | Structured editor (attendance, all record sections, motions and votes, action items, adjournment). Workflow: Draft → Submitted → Approved → Published, with *Return for corrections*. Drafts are visible only to leadership and admins. Published minutes can only be amended with a reason, and every change creates a permanent revision that admins can view. Professional PDF export. |
-| **Documents** | A private library for each committee, organized in folders, stored in S3-compatible storage with short-lived signed download links. File type and size are validated. Removing a document is a soft delete that admins can restore. |
+| **Documents** | A private library for each committee, organized in folders, stored on a Render persistent disk (or optionally S3-compatible storage) and served only after a permission check. File type and size are validated. Removing a document is a soft delete that admins can restore. |
 | **Tasks** | Assign to individual members; due dates, priorities and statuses. Large status buttons for phones. Completion date, person and notes are recorded. Tasks link back to their meeting, and unfinished tasks carry forward onto later minutes. |
 | **Admin** | Dashboard stats, committees, members, PIN management (generate, reset, revoke, bulk generate, printable PIN slips), meetings, minutes, documents, tasks, reports (PDF and CSV), audit log and settings. |
 | **Audit log** | Logins, PIN changes, membership changes, minutes workflow, uploads/downloads, task changes and more, with actor and time. |
@@ -43,7 +43,7 @@ npm run dev                     # http://localhost:3000
 - Member sign-in: `http://localhost:3000/login`
 - Admin sign-in: `http://localhost:3000/admin/login`
 
-In local development, uploads are saved to `./uploads` when S3 isn't configured. That fallback never runs on Render.
+In local development, uploads are saved to `./uploads`. On Render, set `UPLOAD_DIR` to a folder on a persistent disk (the Blueprint does this for you).
 
 ### Environment variables
 
@@ -53,7 +53,8 @@ In local development, uploads are saved to `./uploads` when S3 isn't configured.
 | `SESSION_SECRET` | Protects member session tokens. Generate it with `openssl rand -hex 32`. |
 | `ADMIN_AUTH_SECRET` | Protects administrator session tokens. Generate it the same way. |
 | `PIN_HASH_SECRET` | Key for PIN lookups. **Never change it after PINs are issued**, because every PIN would stop working. |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION` | S3-compatible storage for documents (Cloudflare R2, AWS S3, Backblaze B2, Wasabi and so on). |
+| `UPLOAD_DIR` | Folder for uploaded documents. On Render this is `/var/data/uploads` on the attached persistent disk. |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION` | Optional. S3-compatible storage (Cloudflare R2, AWS S3 and so on). If set, it is used instead of `UPLOAD_DIR`. |
 | `S3_FORCE_PATH_STYLE` | Set to `true` for MinIO and similar providers. |
 | `APP_URL` | Public URL, for example `https://committees.yourhoa.org`. It's printed on PIN slips. |
 | `NODE_ENV` | `production` on Render. |
@@ -67,24 +68,31 @@ Never commit `.env` or production secrets. `.gitignore` already excludes them.
 ## Deploy to Render
 
 1. **Push this folder to a GitHub repository.**
-2. **Create object storage.** Cloudflare R2 is inexpensive and S3-compatible. Create a **private** bucket and an API token with read/write access to it. Note the endpoint (`https://<account>.r2.cloudflarestorage.com`), bucket name, access key and secret.
-3. **Deploy the Blueprint.** In Render, go to **New → Blueprint**, pick the repo, and Render reads `render.yaml`. It creates:
+2. **Deploy the Blueprint.** In Render, go to **New → Blueprint**, pick the repo, and Render reads `render.yaml`. It creates:
    - the PostgreSQL database `hoa-portal-db`
    - the web service `hoa-committee-portal`, with generated secrets, health check `/api/health`, and the migration step
-4. **Fill in the prompted values:** `APP_URL` and the four `S3_*` values. Optionally change `ORG_NAME`.
-5. **Deploy.** Each deploy runs:
+   - a 1 GB **persistent disk** mounted at `/var/data`, where uploaded documents are kept (`UPLOAD_DIR=/var/data/uploads`)
+3. **Fill in the prompted value:** `APP_URL`. Optionally change `ORG_NAME`.
+4. **Deploy.** Each deploy runs:
    - Build: `npm ci --include=dev && npm run build`
    - **Pre-deploy (runs once per deploy, before traffic switches):** `npx prisma migrate deploy && npm run db:seed`
    - Start: `npm start`
 
    Migrations are a controlled deploy step. They never run at app startup, so multiple instances can't race. (Render pre-deploy commands need a paid instance type such as Starter. On the free plan, run `npx prisma migrate deploy` from the Shell tab before each deploy that changes the schema.)
-6. **Create the first administrator.** Choose either option:
+5. **Create the first administrator.** Choose either option:
    - Open `https://<your-app>/admin/setup` and enter the `SETUP_TOKEN` value from the service's **Environment** tab. Then delete `SETUP_TOKEN`.
    - Or, in the Render **Shell**, run `npm run admin:create -- --email you@yourhoa.org --name "Your Name"`.
-7. **Configure:** Admin → Settings (HOA name, logo URL, time zone, session timeout). Then go to Committees and rename them if needed.
-8. **Add members:** Admin → Members. Assign each member to a committee and role (one chair per committee, which the database enforces).
-9. **Generate PINs:** Admin → PIN Management → **Generate PINs**. Print the PIN slips or send each PIN privately. PINs are shown **only once**.
-10. **Test access:** sign in with a member PIN on a phone and confirm you only see that committee.
+6. **Configure:** Admin → Settings (HOA name, logo URL, time zone, session timeout). Then go to Committees and rename them if needed.
+7. **Add members:** Admin → Members. Assign each member to a committee and role (one chair per committee, which the database enforces).
+8. **Generate PINs:** Admin → PIN Management → **Generate PINs**. Print the PIN slips or send each PIN privately. PINs are shown **only once**.
+9. **Test access:** sign in with a member PIN on a phone and confirm you only see that committee.
+
+### About the persistent disk
+
+- Render keeps the disk's files across deploys and restarts, and takes a daily snapshot.
+- A disk needs a paid instance (Starter or higher). It's attached to one instance, so the service can't scale to multiple instances, and each deploy has a few seconds of downtime while the new version takes over the disk.
+- The disk size can be increased in the dashboard later, but never decreased.
+- To move to S3-compatible storage later, add the `S3_*` variables. New uploads go to S3; existing files on the disk need to be copied into the bucket using the same paths (the `storage_key` column).
 
 ### Custom domain and HTTPS
 
@@ -98,7 +106,7 @@ If you loaded demo data:
 npm run db:clear-sample -- --confirm
 ```
 
-This deletes all members, meetings, minutes, tasks, documents, sessions and audit history. It keeps the organization, committees and administrators. Files already uploaded to the bucket are not deleted, so remove them in the storage console if needed.
+This deletes all members, meetings, minutes, tasks, documents, sessions and audit history. It keeps the organization, committees and administrators. Files already uploaded stay on disk; delete `/var/data/uploads` from the Render Shell if you want them gone too.
 
 ---
 
@@ -123,7 +131,7 @@ pg_restore --clean --if-exists --no-owner --dbname "$NEW_DATABASE_URL" hoa-porta
 1. In Render, restore the database to a point in time (this creates a new database), or create a new database and `pg_restore` a dump into it.
 2. Point the web service's `DATABASE_URL` at the restored database and redeploy.
 3. Keep `PIN_HASH_SECRET` the same, or every member will need a new PIN.
-4. Documents live in object storage, which isn't affected by a database restore. Turn on bucket versioning or replication with your storage provider for file backups.
+4. Documents live on the persistent disk, which a database restore doesn't touch. Render snapshots disks daily; restore one under the web service's **Disks** tab. For an extra copy, download them from the Render Shell (for example `tar czf /tmp/uploads.tgz -C /var/data uploads`, then copy the file off with `scp` or the Render CLI).
 5. Check `/api/health` and sign in as an admin and as a member.
 
 ---
@@ -135,7 +143,7 @@ pg_restore --clean --if-exists --no-owner --dbname "$NEW_DATABASE_URL" hoa-porta
 - Deactivating a member, removing them from all committees, or archiving a committee takes effect on their very next request.
 - Login throttling: 5 failures per IP in 15 minutes triggers a lockout. There is also a system-wide brake on PIN guessing. Attempts are stored in Postgres, so limits hold across instances.
 - All mutations are Next.js Server Actions, which are POST-only with built-in Origin checks for CSRF protection. Every action re-checks authorization on the server. Zod validates input. Prisma parameterizes all queries. React escapes all output. CSV exports guard against formula injection.
-- Uploads are checked against a file type allow-list (SVG and HTML are excluded) with a magic-byte check and a 25 MB limit. Files are stored privately and served through 5-minute signed URLs after a permission check.
+- Uploads are checked against a file type allow-list (SVG and HTML are excluded) with a magic-byte check and a 25 MB limit. Files are never publicly reachable; every download goes through a permission check.
 - Historical records (meetings, minutes, revisions, tasks, audit logs) are never hard-deleted. Members are deactivated, committees archived and documents soft-removed.
 
 ---

@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client, HeadBucketCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -58,15 +59,26 @@ function sanitizeFilename(name: string) {
   return name.replace(/[^\w.\- ]+/g, "_").replace(/\s+/g, "_").slice(-120) || "file";
 }
 
-type Driver = "s3" | "local";
+type Driver = "s3" | "disk";
+
+/**
+ * Storage options, in order of preference:
+ *  1. S3-compatible object storage (S3_* variables set).
+ *  2. A persistent disk directory (UPLOAD_DIR), e.g. a Render Persistent Disk mounted at /var/data.
+ *  3. Development only: ./uploads in the project folder.
+ * On Render, only 1 or 2 is allowed, because the normal app filesystem is wiped on every deploy.
+ */
 function driver(): Driver {
   if (process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY) return "s3";
-  // Local disk is for development only. It is never used on Render (RENDER is set there),
-  // because Render's filesystem is wiped on every deploy.
+  if (process.env.UPLOAD_DIR) return "disk";
   if (!process.env.RENDER && (process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_STORAGE === "true")) {
-    if (process.env.ALLOW_LOCAL_STORAGE !== "false") return "local";
+    if (process.env.ALLOW_LOCAL_STORAGE !== "false") return "disk";
   }
-  throw new UserError("File storage is not configured. Set the S3_* environment variables.");
+  throw new UserError("File storage is not configured. Set UPLOAD_DIR (persistent disk) or the S3_* environment variables.");
+}
+
+function diskRoot() {
+  return path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"));
 }
 
 let s3: S3Client | null = null;
@@ -80,7 +92,6 @@ function client() {
   return s3;
 }
 
-const LOCAL_ROOT = path.join(process.cwd(), "uploads");
 
 export async function storeUpload(file: File, opts: { organizationId: string; committeeId: string }) {
   const { mime } = validateUpload(file);
@@ -92,7 +103,7 @@ export async function storeUpload(file: File, opts: { organizationId: string; co
       new PutObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: key, Body: buf, ContentType: mime }),
     );
   } else {
-    const full = path.join(LOCAL_ROOT, key);
+    const full = path.join(diskRoot(), key);
     await mkdir(path.dirname(full), { recursive: true });
     await writeFile(full, buf);
   }
@@ -120,15 +131,20 @@ export async function getDownload(doc: { storageKey: string; mimeType: string; o
     );
     return { type: "redirect", url };
   }
-  const full = path.join(LOCAL_ROOT, doc.storageKey);
-  if (!full.startsWith(LOCAL_ROOT)) throw new Error("Invalid key");
+  const root = diskRoot();
+  const full = path.resolve(root, doc.storageKey);
+  if (!full.startsWith(root + path.sep)) throw new Error("Invalid key");
   return { type: "buffer", body: await readFile(full), contentType: doc.mimeType, disposition };
 }
 
 export async function storageHealth(): Promise<string> {
   try {
     const d = driver();
-    if (d === "local") return "local-dev";
+    if (d === "disk") {
+      await mkdir(diskRoot(), { recursive: true });
+      await access(diskRoot(), constants.W_OK);
+      return process.env.UPLOAD_DIR ? `disk:${diskRoot()}` : "local-dev";
+    }
     await client().send(new HeadBucketCommand({ Bucket: process.env.S3_BUCKET! }));
     return "ok";
   } catch (e) {

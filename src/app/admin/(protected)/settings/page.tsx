@@ -74,7 +74,7 @@ export default async function SettingsPage() {
       <Section title="System status">
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
           <div><dt className="font-semibold text-slate-500">Database</dt><dd>Connected</dd></div>
-          <div><dt className="font-semibold text-slate-500">File storage</dt><dd>{storage === "ok" ? "S3 storage connected" : storage === "local-dev" ? "Local disk (development only)" : storage}</dd></div>
+          <div><dt className="font-semibold text-slate-500">File storage</dt><dd>{storage === "ok" ? "S3 storage connected" : storage === "local-dev" ? "Local folder (development only)" : storage.startsWith("disk:") ? `Persistent disk (${storage.slice(5)})` : storage}</dd></div>
         </dl>
       </Section>
     </div>
