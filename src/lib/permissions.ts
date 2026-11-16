@@ -47,6 +47,10 @@ export const can = {
   viewRevisions: (a: Actor) => isAdmin(a),
   manageDocuments: (a: Actor, c: string) => isLeadership(a, c),
   manageFolders: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
+  /** ARB requests: every member of the reviewing committee can view and add internal notes. */
+  viewArb: (a: Actor, c: string) => inCommittee(a, c),
+  /** Changing stages, messaging residents, uploading, and resetting links: chair, secretary, or admin. */
+  manageArb: (a: Actor, c: string) => isLeadership(a, c),
   manageTasks: (a: Actor, c: string) => isLeadership(a, c),
   viewAllCommitteeTasks: (a: Actor, c: string) => isLeadership(a, c),
 };

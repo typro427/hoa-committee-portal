@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useActionState, useEffect, useRef } from "react";
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 
 export type ActionResult = { ok: boolean; error?: string; message?: string; data?: Record<string, unknown> } | null;
 type ActionFn = (prev: ActionResult, fd: FormData) => Promise<ActionResult>;
+
+const PendingContext = createContext<boolean | null>(null);
 
 /**
  * Form bound to a server action. Shows validation/permission errors and success messages inline.
@@ -31,24 +33,32 @@ export function ActionForm({
   showMessages?: boolean;
   render?: (state: ActionResult) => React.ReactNode;
 }) {
-  const [state, formAction] = useActionState(action, null);
+  const [state, dispatch, pending] = useActionState(action, null);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state?.ok && resetOnSuccess) ref.current?.reset();
   }, [state, resetOnSuccess]);
   return (
-    <form
-      ref={ref}
-      action={formAction}
-      className={className}
-      onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
-      }}
-    >
-      {children}
-      {render?.(state)}
-      {showMessages && <FormMessage state={state} />}
-    </form>
+    <PendingContext.Provider value={pending}>
+      <form
+        ref={ref}
+        className={className}
+        // Submitting through the action dispatcher (instead of <form action>) keeps what the
+        // person typed if the server returns a validation error. React would otherwise clear the form.
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (pending) return;
+          if (confirm && !window.confirm(confirm)) return;
+          const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+          const fd = new FormData(e.currentTarget, submitter);
+          startTransition(() => dispatch(fd));
+        }}
+      >
+        {children}
+        {render?.(state)}
+        {showMessages && <FormMessage state={state} />}
+      </form>
+    </PendingContext.Provider>
   );
 }
 
@@ -70,7 +80,9 @@ export function FormMessage({ state }: { state: ActionResult }) {
 }
 
 export function SubmitButton({ children, className, pendingText, ...props }: ButtonProps & { pendingText?: string }) {
-  const { pending } = useFormStatus();
+  const ctx = useContext(PendingContext);
+  const status = useFormStatus();
+  const pending = ctx ?? status.pending;
   return (
     <Button type="submit" disabled={pending || props.disabled} className={cn(className)} {...props}>
       {pending ? (

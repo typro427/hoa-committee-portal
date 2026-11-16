@@ -6,6 +6,7 @@ import { requireMember } from "@/lib/session";
 import { getOrganization } from "@/lib/org";
 import { logoutMember } from "@/server/auth-actions";
 import { ROLE_LABELS } from "@/lib/format";
+import { memberHandlesArb } from "@/server/arb";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,13 @@ const items: NavItem[] = [
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const actor = await requireMember();
   const org = await getOrganization();
+  const nav = (await memberHandlesArb(actor.committeeId))
+    ? [...items.slice(0, 4), { href: "/portal/arb", label: "ARB Requests", icon: "ClipboardCheck" } as NavItem, ...items.slice(4)]
+    : items;
   return (
     <AppShell
       root="/portal"
-      items={items}
+      items={nav}
       orgName={org.name}
       logoUrl={org.logoUrl}
       title={actor.committeeName}

@@ -55,6 +55,18 @@ export async function setCommitteeStatus(_: ActionResult, fd: FormData): Promise
   });
 }
 
+export async function setCommitteeArb(_: ActionResult, fd: FormData): Promise<ActionResult> {
+  return runAction(async () => {
+    const admin = await requireAdmin();
+    const id = z.string().uuid().parse(fd.get("committeeId"));
+    const on = fd.get("handlesArbRequests") === "on";
+    await db.committee.update({ where: { id }, data: { handlesArbRequests: on } });
+    await audit(admin, { action: on ? "committee.arb_enabled" : "committee.arb_disabled", entityType: "committee", entityId: id, committeeId: id });
+    revalidatePath("/", "layout");
+    return { ok: true, message: on ? "This committee now receives architectural requests and has an ARB Requests tab." : "This committee no longer receives architectural requests." };
+  });
+}
+
 // ---------------- Members ----------------
 
 const memberSchema = z.object({

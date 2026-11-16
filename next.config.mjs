@@ -3,7 +3,7 @@ const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@node-rs/argon2", "unpdf"],
   experimental: {
-    serverActions: { bodySizeLimit: "26mb" },
+    serverActions: { bodySizeLimit: "100mb" }, // ARB submissions can include several plans at once
   },
   async headers() {
     return [

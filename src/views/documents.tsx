@@ -40,6 +40,7 @@ export async function DocumentsListView({ actor, sp }: { actor: Actor; sp: SP })
   const where: Prisma.DocumentWhereInput = {
     committee: { organizationId: org.id },
     committeeId,
+    arbRequestId: null, // ARB request files live on the request, not in the library
     removedAt: showRemoved ? { not: null } : null,
     // Task attachments are private to the assignee + leadership.
     ...(actor.kind === "member" && !leadership ? { OR: [{ taskId: null }, { task: { assignedMemberId: actor.memberId } }] } : {}),

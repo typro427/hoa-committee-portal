@@ -46,3 +46,15 @@ export async function recordAttempt(keys: string[], success: boolean) {
     await db.loginAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 24 * 3600_000) } } });
   }
 }
+
+/**
+ * Simple quota for public actions (ARB submissions, resident uploads). Returns false when the
+ * key has already been used `max` times in the window; otherwise records one use.
+ */
+export async function consumeQuota(key: string, max: number, windowMinutes: number) {
+  const since = new Date(Date.now() - windowMinutes * 60_000);
+  const used = await db.loginAttempt.count({ where: { key, createdAt: { gte: since } } });
+  if (used >= max) return false;
+  await db.loginAttempt.create({ data: { key, success: true } });
+  return true;
+}

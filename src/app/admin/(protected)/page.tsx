@@ -23,11 +23,11 @@ export default async function AdminDashboard() {
     db.meetingMinutes.count({ where: { meeting: o, status: { in: ["SUBMITTED", "APPROVED"] } } }),
     db.task.count({ where: { ...o, status: open } }),
     db.task.count({ where: { ...o, status: open, dueDate: { lt: today } } }),
-    db.document.count({ where: { ...o, removedAt: null, createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } } }),
+    db.document.count({ where: { ...o, removedAt: null, arbRequestId: null, createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } } }),
     db.meeting.findMany({ where: { ...o, meetingDate: { gte: today }, status: { in: ["SCHEDULED", "POSTPONED"] } }, orderBy: [{ meetingDate: "asc" }], take: 5, include: { committee: { select: { name: true } } } }),
     db.meeting.findMany({ where: { ...o, meetingDate: { lt: today } }, orderBy: { meetingDate: "desc" }, take: 5, include: { committee: { select: { name: true } }, minutes: { select: { status: true } } } }),
     db.meetingMinutes.findMany({ where: { meeting: o, status: { in: ["SUBMITTED", "APPROVED", "CHANGES_REQUESTED", "DRAFT"] } }, orderBy: { updatedAt: "desc" }, take: 6, include: { meeting: { select: { title: true, meetingDate: true, committee: { select: { name: true } } } } } }),
-    db.document.findMany({ where: { ...o, removedAt: null }, orderBy: { createdAt: "desc" }, take: 5, include: { committee: { select: { name: true } } } }),
+    db.document.findMany({ where: { ...o, removedAt: null, arbRequestId: null }, orderBy: { createdAt: "desc" }, take: 5, include: { committee: { select: { name: true } } } }),
     db.member.count({ where: { organizationId: org.id, status: "ACTIVE", pinHash: null } }),
   ]);
   const committeeCount = await db.committee.count({ where: { organizationId: org.id } });

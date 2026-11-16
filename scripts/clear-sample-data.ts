@@ -1,5 +1,5 @@
 /**
- * Removes ALL members, meetings, minutes, tasks, documents, sessions, and audit history so the
+ * Removes ALL members, meetings, minutes, tasks, documents, ARB requests, sessions, and audit history so the
  * portal can go live with a clean slate. Keeps the organization, committees, and administrators.
  * Uploaded files in object storage are NOT deleted (remove them from your bucket if desired).
  *
@@ -20,7 +20,9 @@ async function main() {
     db.auditLog.deleteMany({}),
     db.motion.deleteMany({}),
     db.meetingMinuteRevision.deleteMany({}),
+    db.arbRequestEvent.deleteMany({}),
     db.document.deleteMany({}),
+    db.arbRequest.deleteMany({}),
     db.task.deleteMany({}),
     db.meetingMinutes.deleteMany({}),
     db.meetingAttendance.deleteMany({}),

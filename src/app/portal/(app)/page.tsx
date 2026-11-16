@@ -9,6 +9,7 @@ import { MinutesStatusBadge, PriorityBadge, StatCard } from "@/components/common
 import { formatDate, formatTimeRange, isoToDate, todayISO } from "@/lib/format";
 import { DateTile } from "@/views/meetings-list";
 import { FileIcon } from "@/views/documents";
+import { memberHandlesArb } from "@/server/arb";
 
 export const metadata = { title: "Overview" };
 
@@ -26,11 +27,18 @@ export default async function Dashboard() {
     db.meetingMinutes.findMany({ where: { status: "PUBLISHED", meeting: { committeeId: c } }, include: { meeting: { select: { title: true, meetingDate: true } } }, orderBy: { meeting: { meetingDate: "desc" } }, take: 3 }),
     db.task.findMany({ where: { committeeId: c, assignedMemberId: actor.memberId, status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }], take: 5 }),
     db.task.count({ where: { committeeId: c, assignedMemberId: actor.memberId, status: { notIn: ["COMPLETED", "CANCELLED"] }, dueDate: { lt: today } } }),
-    db.document.findMany({ where: { committeeId: c, removedAt: null, taskId: null }, orderBy: { createdAt: "desc" }, take: 4 }),
+    db.document.findMany({ where: { committeeId: c, removedAt: null, taskId: null, arbRequestId: null }, orderBy: { createdAt: "desc" }, take: 4 }),
     leadership ? db.meetingMinutes.findMany({ where: { meeting: { committeeId: c }, status: { not: "PUBLISHED" } }, include: { meeting: { select: { meetingDate: true, title: true } } }, take: 5 }) : [],
   ]);
-  const docsLast30 = await db.document.count({ where: { committeeId: c, removedAt: null, taskId: null, createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } } });
+  const docsLast30 = await db.document.count({ where: { committeeId: c, removedAt: null, taskId: null, arbRequestId: null, createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } } });
   const next = upcoming[0];
+  const arb = (await memberHandlesArb(c))
+    ? await Promise.all([
+        db.arbRequest.count({ where: { committeeId: c, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } }),
+        db.arbRequest.count({ where: { committeeId: c, status: "MORE_INFO_NEEDED" } }),
+        db.arbRequest.count({ where: { committeeId: c, status: "AWAITING_BUILDING_PERMIT", documents: { some: { arbDocType: "BUILDING_PERMIT", removedAt: null } } } }),
+      ])
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -47,6 +55,16 @@ export default async function Dashboard() {
         <StatCard label="Recent minutes" value={recentMinutes[0] ? monthDay(recentMinutes[0].meeting.meetingDate) : "None"} href="/portal/minutes" icon={<FileText />} />
         <StatCard label="Docs added (30 days)" value={docsLast30} href="/portal/documents" icon={<FolderOpen />} />
       </div>
+
+      {arb && (
+        <Link href="/portal/arb" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-navy-100 bg-white p-4 shadow-sm hover:border-navy-300">
+          <span className="font-semibold text-navy-900">ARB Requests</span>
+          <span className="text-sm"><b className="text-navy-900">{arb[0]}</b> to review</span>
+          <span className="text-sm"><b className="text-amber-700">{arb[1]}</b> waiting on resident</span>
+          <span className="text-sm"><b className="text-emerald-700">{arb[2]}</b> permits ready to close</span>
+          <ChevronRight className="ml-auto size-5 text-slate-400" />
+        </Link>
+      )}
 
       {awaiting.length > 0 && (
         <Card className="border-blue-200 bg-blue-50/50">

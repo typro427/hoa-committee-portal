@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   Menu, X, LayoutDashboard, CalendarDays, FileText, FolderOpen, ListChecks, Users,
-  Building2, KeyRound, BarChart3, ScrollText, Settings, UserRound,
+  Building2, KeyRound, BarChart3, ScrollText, Settings, UserRound, ClipboardCheck,
 } from "lucide-react";
 
 const Icons = {
   LayoutDashboard, CalendarDays, FileText, FolderOpen, ListChecks, Users,
-  Building2, KeyRound, BarChart3, ScrollText, Settings, UserRound,
+  Building2, KeyRound, BarChart3, ScrollText, Settings, UserRound, ClipboardCheck,
 };
 import { cn } from "@/lib/utils";
 

@@ -96,6 +96,48 @@ enum TaskPriority {
   URGENT
 }
 
+enum ArbStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  MORE_INFO_NEEDED
+  APPROVED
+  APPROVED_WITH_CONDITIONS
+  DENIED
+  CONSTRUCTION_IN_PROGRESS
+  AWAITING_BUILDING_PERMIT
+  COMPLETED
+}
+
+enum ArbProjectType {
+  NEW_CONSTRUCTION
+  ADDITION
+  DECK_OR_PATIO
+  FENCE
+  POOL_OR_SPA
+  SHED_OR_ACCESSORY
+  DRIVEWAY
+  ROOF
+  EXTERIOR_PAINT
+  LANDSCAPING
+  SOLAR
+  OTHER
+}
+
+enum ArbDocType {
+  PLAT_PLAN
+  ELEVATIONS
+  UTILITY_LOCATIONS
+  BUILDING_PERMIT
+  OTHER
+}
+
+enum UtilityPlacement {
+  OVERHEAD
+  BURIED
+  NOT_APPLICABLE
+  UNKNOWN
+}
+
 enum AdminStatus {
   ACTIVE
   DISABLED
@@ -127,6 +169,8 @@ model Committee {
   name           String
   description    String?
   status         CommitteeStatus @default(ACTIVE)
+  /// This committee reviews architectural (ARB) requests submitted by residents.
+  handlesArbRequests Boolean     @default(false) @map("handles_arb_requests")
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
 
@@ -136,6 +180,7 @@ model Committee {
   tasks        Task[]
   documents    Document[]
   folders      DocumentFolder[]
+  arbRequests  ArbRequest[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
@@ -370,6 +415,11 @@ model Document {
   meetingId          String?          @map("meeting_id") @db.Uuid
   agendaItemId       String?          @map("agenda_item_id") @db.Uuid
   taskId             String?          @map("task_id") @db.Uuid
+  /// Supporting file for an architectural request (not shown in the general library).
+  arbRequestId       String?          @map("arb_request_id") @db.Uuid
+  arbDocType         ArbDocType?      @map("arb_doc_type")
+  /// Set when a resident uploaded the file through their tracking link.
+  uploadedByResident String?          @map("uploaded_by_resident")
   title              String
   description        String?
   /// Null = "Unfiled" (e.g. after its folder was removed).
@@ -390,12 +440,14 @@ model Document {
   meeting          Meeting?    @relation(fields: [meetingId], references: [id])
   agendaItem       AgendaItem? @relation(fields: [agendaItemId], references: [id], onDelete: SetNull)
   task             Task?       @relation(fields: [taskId], references: [id])
+  arbRequest       ArbRequest? @relation(fields: [arbRequestId], references: [id])
   uploadedByMember Member?     @relation("DocUploaderMember", fields: [uploadedByMemberId], references: [id])
   uploadedByAdmin  AdminUser?  @relation("DocUploaderAdmin", fields: [uploadedByAdminId], references: [id])
 
   @@index([committeeId, folderId, removedAt])
   @@index([meetingId])
   @@index([taskId])
+  @@index([arbRequestId])
   @@map("documents")
 }
 
@@ -414,6 +466,66 @@ model DocumentFolder {
   @@unique([committeeId, name])
   @@index([committeeId, displayOrder])
   @@map("document_folders")
+}
+
+/// An architectural review request submitted by a resident (or entered by the ARB).
+model ArbRequest {
+  id                String           @id @default(uuid()) @db.Uuid
+  committeeId       String           @map("committee_id") @db.Uuid
+  referenceNumber   String           @unique @map("reference_number") // e.g. ARB-2026-0007
+  status            ArbStatus        @default(SUBMITTED)
+  applicantName     String           @map("applicant_name")
+  applicantEmail    String?          @map("applicant_email")
+  applicantPhone    String?          @map("applicant_phone")
+  propertyAddress   String           @map("property_address")
+  lotNumber         String?          @map("lot_number")
+  projectType       ArbProjectType   @map("project_type")
+  description       String
+  contractorName    String?          @map("contractor_name")
+  estimatedStart    DateTime?        @map("estimated_start") @db.Date
+  estimatedFinish   DateTime?        @map("estimated_finish") @db.Date
+  waterLine         UtilityPlacement @default(UNKNOWN) @map("water_line")
+  gasLine           UtilityPlacement @default(UNKNOWN) @map("gas_line")
+  electricLine      UtilityPlacement @default(UNKNOWN) @map("electric_line")
+  utilityNotes      String?          @map("utility_notes")
+  /// Decision text shown to the resident (conditions of approval or reason for denial).
+  decisionNotes     String?          @map("decision_notes")
+  decidedAt         DateTime?        @map("decided_at")
+  decidedByName     String?          @map("decided_by_name")
+  completedAt       DateTime?        @map("completed_at")
+  /// HMAC of the resident's private tracking token. The token itself is never stored.
+  accessTokenHash   String           @unique @map("access_token_hash")
+  submittedByStaff  String?          @map("submitted_by_staff")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  committee Committee         @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  documents Document[]
+  events    ArbRequestEvent[]
+
+  @@index([committeeId, status])
+  @@index([propertyAddress])
+  @@map("arb_requests")
+}
+
+/// Progress history: stage changes, messages to/from the resident, internal notes, uploads.
+model ArbRequestEvent {
+  id                String     @id @default(uuid()) @db.Uuid
+  requestId         String     @map("request_id") @db.Uuid
+  kind              String     // STATUS_CHANGE | MESSAGE | NOTE | DOCUMENT | RESIDENT
+  fromStatus        ArbStatus? @map("from_status")
+  toStatus          ArbStatus? @map("to_status")
+  message           String?
+  visibleToResident Boolean    @default(false) @map("visible_to_resident")
+  actorName         String     @map("actor_name")
+  actorMemberId     String?    @map("actor_member_id") @db.Uuid
+  actorAdminId      String?    @map("actor_admin_id") @db.Uuid
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  request ArbRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@map("arb_request_events")
 }
 
 model MeetingMinuteRevision {

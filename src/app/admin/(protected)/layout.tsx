@@ -15,6 +15,7 @@ const items: NavItem[] = [
   { href: "/admin/minutes", label: "Meeting Minutes", icon: "FileText" },
   { href: "/admin/documents", label: "Documents", icon: "FolderOpen" },
   { href: "/admin/tasks", label: "Tasks", icon: "ListChecks" },
+  { href: "/admin/arb", label: "ARB Requests", icon: "ClipboardCheck" },
   { href: "/admin/reports", label: "Reports", icon: "BarChart3" },
   { href: "/admin/audit", label: "Audit Log", icon: "ScrollText" },
   { href: "/admin/settings", label: "Settings", icon: "Settings" },

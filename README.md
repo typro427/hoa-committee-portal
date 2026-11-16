@@ -18,12 +18,23 @@ The initial setup creates three committees: **Safety and Security Committee**, *
 | **Agenda builder** | Standard 10-section agenda, add/edit/remove/reorder items, attach supporting documents, printable PDF. |
 | **Minutes** | Structured editor (attendance, all record sections, motions and votes, action items, adjournment). Workflow: Draft → Submitted → Approved → Published, with *Return for corrections*. Drafts are visible only to leadership and admins. Published minutes can only be amended with a reason, and every change creates a permanent revision that admins can view. Professional PDF export. |
 | **Import from Zoom** | Chairs and secretaries can fill in minutes from the Zoom AI Companion summary (PDF export, pasted text, or a .txt/.vtt file). Each summary topic is mapped to a minutes section (small talk is skipped automatically), every "Next steps" bullet becomes an action item assigned to the matching committee member, and members named in the notes are pre-marked present. Everything is reviewed on one screen before it's added, and nothing is published automatically. The original Zoom file can be saved to the meeting's documents. |
+| **ARB requests** | Residents submit architectural requests at `/arb` (no PIN needed) with the plat plan, elevation drawings and utility locations, and say whether the water, gas and electric lines are overhead or buried. Each resident gets a private tracking link to follow the stage, read the board's messages, reply, upload more files, report construction started/finished, and upload the building permit after completion. The reviewing committee (the Architectural Review Board by default) gets an **ARB Requests** tab with Overview, Documents (checklist) and Progress (stage + history) tabs. Stages: Submitted → Under Review → More Info Needed → Approved / Approved with Conditions / Denied → Construction In Progress → Awaiting Building Permit → Completed. |
 | **Documents** | A private library for each committee, organized in folders that the committee chair (or an administrator) can add, rename and remove. Removing a folder never deletes documents; they move to another folder or to *Unfiled*. Meeting attachments and Zoom notes are filed automatically into a folder with "Meeting" in its name. stored on a Render persistent disk (or optionally S3-compatible storage) and served only after a permission check. File type and size are validated. Removing a document is a soft delete that admins can restore. |
 | **Tasks** | Assign to individual members; due dates, priorities and statuses. Large status buttons for phones. Completion date, person and notes are recorded. Tasks link back to their meeting, and unfinished tasks carry forward onto later minutes. |
 | **Admin** | Dashboard stats, committees, members, PIN management (generate, reset, revoke, bulk generate, printable PIN slips), meetings, minutes, documents, tasks, reports (PDF and CSV), audit log and settings. |
 | **Audit log** | Logins, PIN changes, membership changes, minutes workflow, uploads/downloads, task changes and more, with actor and time. |
 
 **Stack:** Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn-style UI components, Lucide icons, Prisma 6 with PostgreSQL, Zod, `@node-rs/argon2`, AWS S3 SDK and `pdf-lib`.
+
+### Architectural (ARB) requests
+
+- **Share the resident form:** `https://<your-site>/arb` (the ARB Requests page has a copy button). The sign-in page also links to it.
+- **Resident links are private.** Each one works like a password for that one request. If a homeowner loses theirs, or you entered a paper request for them, open the request and use **Create resident link**; the old link stops working.
+- **Who can do what:** every member of the reviewing committee can view requests and add internal notes. The chair, secretary and administrators change stages, message the resident, upload files and create links. Internal notes are never shown to residents.
+- **Building permit:** a request can't be marked Completed until a building permit is uploaded, unless the board checks "No permit required".
+- **Which committee reviews requests:** Admin → Committees → (committee) → "Receives architectural (ARB) requests".
+- **Abuse protection:** the public form is limited to 5 submissions per device per hour and includes a spam trap; resident uploads are rate-limited too.
+- There are no email notifications yet. Residents check their link, and the board checks the ARB Requests tab (new resident activity is flagged).
 
 ### Writing minutes from Zoom
 

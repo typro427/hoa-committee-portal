@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Field, Input, Options, Select, Textarea } from "@/components/ui/form";
 import { formatDateTime, ROLE_LABELS } from "@/lib/format";
-import { removeMembership, saveMembership, setCommitteeStatus, updateCommittee } from "@/server/admin-actions";
+import { removeMembership, saveMembership, setCommitteeArb, setCommitteeStatus, updateCommittee } from "@/server/admin-actions";
 
 export const metadata = { title: "Committee" };
 
@@ -105,6 +105,14 @@ export default async function CommitteePage({ params }: { params: Promise<{ id: 
           <Field label="Name" htmlFor="name"><Input id="name" name="name" defaultValue={c.name} required /></Field>
           <Field label="Description" htmlFor="description"><Textarea id="description" name="description" rows={2} defaultValue={c.description ?? ""} /></Field>
           <div><SubmitButton>Save</SubmitButton></div>
+        </ActionForm>
+        <ActionForm action={setCommitteeArb} className="mt-5 flex flex-wrap items-center gap-3 border-t pt-4">
+          <input type="hidden" name="committeeId" value={c.id} />
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="handlesArbRequests" defaultChecked={c.handlesArbRequests} className="mt-0.5 size-4" />
+            <span><span className="font-medium">Receives architectural (ARB) requests</span><br /><span className="text-slate-500">Residents&apos; requests from the public form go to this committee, and its members get an ARB Requests tab.</span></span>
+          </label>
+          <SubmitButton size="sm" variant="secondary">Save</SubmitButton>
         </ActionForm>
         <ActionForm
           action={setCommitteeStatus}
