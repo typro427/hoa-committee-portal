@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import { formObject, runAction, UserError, type ActionResult } from "@/lib/action";
 import { generatePin, hashSecret, pinLookup, verifySecret } from "@/lib/crypto";
 import { getOrganization } from "@/lib/org";
+import { createDefaultFolders } from "./folders";
 
 const ROLE = z.enum(["CHAIR", "SECRETARY", "MEMBER"]);
 
@@ -22,6 +23,7 @@ export async function createCommittee(_: ActionResult, fd: FormData): Promise<Ac
     const org = await getOrganization();
     const d = committeeSchema.parse(formObject(fd));
     const c = await db.committee.create({ data: { organizationId: org.id, name: d.name, description: d.description ?? null } });
+    await createDefaultFolders(c.id);
     await audit(admin, { action: "committee.created", entityType: "committee", entityId: c.id, committeeId: c.id, details: { name: c.name } });
     revalidatePath("/", "layout");
     redirect(`/admin/committees/${c.id}`);

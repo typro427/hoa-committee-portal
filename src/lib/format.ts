@@ -38,15 +38,16 @@ export const TASK_PRIORITY_LABELS = {
   URGENT: "Urgent",
 } as const;
 
-export const DOCUMENT_CATEGORY_LABELS = {
-  MEETING_DOCUMENTS: "Meeting Documents",
-  FINANCIAL_REPORTS: "Financial Reports",
-  VENDOR_QUOTES: "Vendor Quotes",
-  PROJECT_DOCUMENTS: "Project Documents",
-  POLICIES_AND_PROCEDURES: "Policies and Procedures",
-  GENERAL: "General Committee Documents",
-  ARCHIVED: "Archived Documents",
-} as const;
+/** Folders every new committee starts with. Chairs and administrators can add, rename, or remove them. */
+export const DEFAULT_FOLDERS = [
+  "Meeting Documents",
+  "Financial Reports",
+  "Vendor Quotes",
+  "Project Documents",
+  "Policies and Procedures",
+  "General Committee Documents",
+  "Archived Documents",
+] as const;
 
 export const AGENDA_SECTION_LABELS = {
   CALL_TO_ORDER: "Call to Order",

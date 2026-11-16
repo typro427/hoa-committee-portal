@@ -82,6 +82,7 @@ export async function loadDocument(actor: Actor, id: string) {
     where: { id },
     include: {
       committee: { select: { id: true, name: true } },
+      folder: { select: { name: true } },
       meeting: { select: { id: true, title: true, meetingDate: true } },
       task: { select: { id: true, title: true, assignedMemberId: true } },
       uploadedByMember: { select: { firstName: true, lastName: true } },

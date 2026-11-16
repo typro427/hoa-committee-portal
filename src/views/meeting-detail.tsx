@@ -106,7 +106,7 @@ export async function MeetingDetailView({ actor, id }: { actor: Actor; id: strin
         {can.manageDocuments(actor, c) && (
           <details className="mt-4">
             <summary className="cursor-pointer text-sm font-semibold text-navy-700">Upload a meeting document</summary>
-            <div className="mt-3"><UploadForm scope={scope} hidden={{ meetingId: m.id }} defaultCategory="MEETING_DOCUMENTS" /></div>
+            <div className="mt-3"><UploadForm scope={scope} hidden={{ meetingId: m.id }} /></div>
           </details>
         )}
       </Section>

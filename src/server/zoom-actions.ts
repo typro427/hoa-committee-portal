@@ -13,6 +13,7 @@ import { formatDate, formatTime, isoToDate } from "@/lib/format";
 import { MINUTES_SECTIONS } from "@/lib/minutes-record";
 import { parseZoomNotes, vttToText } from "@/lib/zoom-notes";
 import { basePath, isUuid } from "./loaders";
+import { autoFolderId } from "./folders";
 
 const MAX_NOTES_BYTES = 10 * 1024 * 1024;
 
@@ -70,7 +71,7 @@ export async function parseZoomUpload(_: ActionResult, fd: FormData): Promise<Ac
           committeeId: m.meeting.committeeId,
           meetingId: m.meetingId,
           title: `Zoom meeting notes — ${formatDate(m.meeting.meetingDate, "short")}`,
-          category: "MEETING_DOCUMENTS",
+          folderId: await autoFolderId(m.meeting.committeeId, true),
           ...stored,
           uploadedByMemberId: actor.kind === "member" ? actor.memberId : null,
           uploadedByAdminId: actor.kind === "admin" ? actor.adminId : null,

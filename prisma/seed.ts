@@ -6,6 +6,7 @@
  *   ORG_NAME="Willow Creek HOA" npm run db:seed
  */
 import { prisma } from "../scripts/_shared";
+import { DEFAULT_FOLDERS } from "../src/lib/format";
 
 const STARTING_COMMITTEES = [
   { name: "Safety and Security Committee", description: "Community safety, security patrols, gate access, lighting, and emergency preparedness." },
@@ -30,7 +31,8 @@ async function main() {
   }
   if ((await db.committee.count({ where: { organizationId: org.id } })) === 0) {
     for (const c of STARTING_COMMITTEES) {
-      await db.committee.create({ data: { ...c, organizationId: org.id } });
+      const created = await db.committee.create({ data: { ...c, organizationId: org.id } });
+      await db.documentFolder.createMany({ data: DEFAULT_FOLDERS.map((name, i) => ({ committeeId: created.id, name, displayOrder: (i + 1) * 10 })) });
       console.log(`Created committee: ${c.name}`);
     }
   } else {

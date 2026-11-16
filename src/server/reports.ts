@@ -121,7 +121,7 @@ export async function buildReport(type: ReportType, p: ReportParams): Promise<Re
           }),
           db.task.findMany({ where: { committeeId: c.id, status: "COMPLETED", completedAt: dateRange }, include: { assignedMember: { select: { firstName: true, lastName: true } } }, orderBy: { completedAt: "asc" } }),
           db.task.findMany({ where: { committeeId: c.id, status: { notIn: ["COMPLETED", "CANCELLED"] } }, include: { assignedMember: { select: { firstName: true, lastName: true } } } }),
-          db.document.findMany({ where: { committeeId: c.id, category: "PROJECT_DOCUMENTS", createdAt: dateRange, removedAt: null }, select: { title: true, createdAt: true } }),
+          db.document.findMany({ where: { committeeId: c.id, folder: { name: { contains: "project", mode: "insensitive" } }, createdAt: dateRange, removedAt: null }, select: { title: true, createdAt: true } }),
         ]);
         summary.push([c.name, `${meetings} meetings · ${completed.length} tasks completed · ${open.length} outstanding`]);
         const rows: string[][] = [];

@@ -4,7 +4,7 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { EmptyState, ScopeInput } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Options, Select, Textarea } from "@/components/ui/form";
-import { AGENDA_SECTION_LABELS, ATTENDANCE_LABELS, DOCUMENT_CATEGORY_LABELS, formatBytes, formatDate } from "@/lib/format";
+import { AGENDA_SECTION_LABELS, ATTENDANCE_LABELS, formatBytes, formatDate } from "@/lib/format";
 import { ACCEPT_ATTR } from "@/lib/storage";
 import { sortAgenda } from "@/lib/agenda";
 import {
@@ -231,49 +231,55 @@ export function DocList({ docs, base }: { docs: Doc[]; base: string }) {
 }
 
 export function UploadForm({
-  scope, hidden, compact, committees, meetings, defaultCategory,
+  scope, hidden, compact, committees, meetings, folders, defaultFolderId,
 }: {
   scope: Scope;
   hidden?: Record<string, string>;
   compact?: boolean;
   committees?: { id: string; name: string }[];
   meetings?: { id: string; title: string; meetingDate: Date }[];
-  defaultCategory?: string;
+  /** When given, the uploader picks a folder. Otherwise the file is filed automatically. */
+  folders?: { id: string; name: string }[];
+  defaultFolderId?: string;
 }) {
+  const sfx = Object.values(hidden ?? {}).join("").slice(0, 36) || "lib"; // unique ids when several forms share a page
   return (
     <ActionForm action={uploadDocument} resetOnSuccess className={compact ? "flex flex-col gap-3" : "grid gap-3 sm:grid-cols-2"}>
       <ScopeInput scope={scope} />
       {Object.entries(hidden ?? {}).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       {committees && (
-        <Field label="Committee" htmlFor="up-committee" className="sm:col-span-2">
-          <Select id="up-committee" name="committeeId" required defaultValue="">
+        <Field label="Committee" htmlFor={`up-committee-${sfx}`} className="sm:col-span-2">
+          <Select id={`up-committee-${sfx}`} name="committeeId" required defaultValue="">
             <option value="">Choose a committee…</option>
             {committees.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </Field>
       )}
-      <Field label="File" htmlFor={`file-${Object.values(hidden ?? {}).join("")}`} hint="PDF, Word, Excel, PowerPoint, text, or images · up to 25 MB" className={compact ? "" : "sm:col-span-2"}>
-        <input id={`file-${Object.values(hidden ?? {}).join("")}`} name="file" type="file" required accept={ACCEPT_ATTR} className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-navy-50 file:px-3 file:py-2 file:font-semibold file:text-navy-800" />
+      <Field label="File" htmlFor={`file-${sfx}`} hint="PDF, Word, Excel, PowerPoint, text, or images · up to 25 MB" className={compact ? "" : "sm:col-span-2"}>
+        <input id={`file-${sfx}`} name="file" type="file" required accept={ACCEPT_ATTR} className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-navy-50 file:px-3 file:py-2 file:font-semibold file:text-navy-800" />
       </Field>
-      <Field label="Title (optional)" htmlFor="up-title">
-        <Input id="up-title" name="title" maxLength={200} placeholder="Defaults to the file name" />
+      <Field label="Title (optional)" htmlFor={`up-title-${sfx}`}>
+        <Input id={`up-title-${sfx}`} name="title" maxLength={200} placeholder="Defaults to the file name" />
       </Field>
-      {!compact && (
-        <Field label="Folder" htmlFor="up-category">
-          <Select id="up-category" name="category" defaultValue={defaultCategory ?? "GENERAL"}><Options labels={DOCUMENT_CATEGORY_LABELS} /></Select>
+      {folders && (
+        <Field label="Folder" htmlFor={`up-folder-${sfx}`}>
+          <Select id={`up-folder-${sfx}`} name="folderId" defaultValue={defaultFolderId ?? folders.find((f) => /general/i.test(f.name))?.id ?? folders[0]?.id ?? ""}>
+            {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            <option value="">Unfiled</option>
+          </Select>
         </Field>
       )}
       {meetings && (
-        <Field label="Related meeting (optional)" htmlFor="up-meeting">
-          <Select id="up-meeting" name="meetingId" defaultValue="">
+        <Field label="Related meeting (optional)" htmlFor={`up-meeting-${sfx}`}>
+          <Select id={`up-meeting-${sfx}`} name="meetingId" defaultValue="">
             <option value="">None</option>
             {meetings.map((m) => <option key={m.id} value={m.id}>{formatDate(m.meetingDate, "short")} — {m.title}</option>)}
           </Select>
         </Field>
       )}
       {!compact && (
-        <Field label="Description (optional)" htmlFor="up-desc" className="sm:col-span-2">
-          <Textarea id="up-desc" name="description" rows={2} />
+        <Field label="Description (optional)" htmlFor={`up-desc-${sfx}`} className="sm:col-span-2">
+          <Textarea id={`up-desc-${sfx}`} name="description" rows={2} />
         </Field>
       )}
       <div className={compact ? "" : "sm:col-span-2"}>

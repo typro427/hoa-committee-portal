@@ -46,6 +46,7 @@ export const can = {
   amendPublishedMinutes: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
   viewRevisions: (a: Actor) => isAdmin(a),
   manageDocuments: (a: Actor, c: string) => isLeadership(a, c),
+  manageFolders: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
   manageTasks: (a: Actor, c: string) => isLeadership(a, c),
   viewAllCommitteeTasks: (a: Actor, c: string) => isLeadership(a, c),
 };

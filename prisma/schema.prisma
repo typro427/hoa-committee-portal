@@ -96,16 +96,6 @@ enum TaskPriority {
   URGENT
 }
 
-enum DocumentCategory {
-  MEETING_DOCUMENTS
-  FINANCIAL_REPORTS
-  VENDOR_QUOTES
-  PROJECT_DOCUMENTS
-  POLICIES_AND_PROCEDURES
-  GENERAL
-  ARCHIVED
-}
-
 enum AdminStatus {
   ACTIVE
   DISABLED
@@ -145,6 +135,7 @@ model Committee {
   meetings     Meeting[]
   tasks        Task[]
   documents    Document[]
+  folders      DocumentFolder[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
@@ -381,7 +372,8 @@ model Document {
   taskId             String?          @map("task_id") @db.Uuid
   title              String
   description        String?
-  category           DocumentCategory @default(GENERAL)
+  /// Null = "Unfiled" (e.g. after its folder was removed).
+  folderId           String?          @map("folder_id") @db.Uuid
   originalFilename   String           @map("original_filename")
   storageKey         String           @unique @map("storage_key")
   mimeType           String           @map("mime_type")
@@ -393,17 +385,35 @@ model Document {
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
 
-  committee        Committee   @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  committee        Committee       @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  folder           DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   meeting          Meeting?    @relation(fields: [meetingId], references: [id])
   agendaItem       AgendaItem? @relation(fields: [agendaItemId], references: [id], onDelete: SetNull)
   task             Task?       @relation(fields: [taskId], references: [id])
   uploadedByMember Member?     @relation("DocUploaderMember", fields: [uploadedByMemberId], references: [id])
   uploadedByAdmin  AdminUser?  @relation("DocUploaderAdmin", fields: [uploadedByAdminId], references: [id])
 
-  @@index([committeeId, category, removedAt])
+  @@index([committeeId, folderId, removedAt])
   @@index([meetingId])
   @@index([taskId])
   @@map("documents")
+}
+
+/// Document library folders. Each committee has its own; the chair or an administrator manages them.
+model DocumentFolder {
+  id           String   @id @default(uuid()) @db.Uuid
+  committeeId  String   @map("committee_id") @db.Uuid
+  name         String
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  committee Committee  @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  documents Document[]
+
+  @@unique([committeeId, name])
+  @@index([committeeId, displayOrder])
+  @@map("document_folders")
 }
 
 model MeetingMinuteRevision {
