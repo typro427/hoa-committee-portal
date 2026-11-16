@@ -17,12 +17,22 @@ The initial setup creates three committees: **Safety and Security Committee**, *
 | **Meetings** | Create, edit, cancel or postpone meetings. Monthly calendar and upcoming/past lists. |
 | **Agenda builder** | Standard 10-section agenda, add/edit/remove/reorder items, attach supporting documents, printable PDF. |
 | **Minutes** | Structured editor (attendance, all record sections, motions and votes, action items, adjournment). Workflow: Draft → Submitted → Approved → Published, with *Return for corrections*. Drafts are visible only to leadership and admins. Published minutes can only be amended with a reason, and every change creates a permanent revision that admins can view. Professional PDF export. |
+| **Import from Zoom** | Chairs and secretaries can fill in minutes from the Zoom AI Companion summary (PDF export, pasted text, or a .txt/.vtt file). Each summary topic is mapped to a minutes section (small talk is skipped automatically), every "Next steps" bullet becomes an action item assigned to the matching committee member, and members named in the notes are pre-marked present. Everything is reviewed on one screen before it's added, and nothing is published automatically. The original Zoom file can be saved to the meeting's documents. |
 | **Documents** | A private library for each committee, organized in folders, stored on a Render persistent disk (or optionally S3-compatible storage) and served only after a permission check. File type and size are validated. Removing a document is a soft delete that admins can restore. |
 | **Tasks** | Assign to individual members; due dates, priorities and statuses. Large status buttons for phones. Completion date, person and notes are recorded. Tasks link back to their meeting, and unfinished tasks carry forward onto later minutes. |
 | **Admin** | Dashboard stats, committees, members, PIN management (generate, reset, revoke, bulk generate, printable PIN slips), meetings, minutes, documents, tasks, reports (PDF and CSV), audit log and settings. |
 | **Audit log** | Logins, PIN changes, membership changes, minutes workflow, uploads/downloads, task changes and more, with actor and time. |
 
 **Stack:** Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn-style UI components, Lucide icons, Prisma 6 with PostgreSQL, Zod, `@node-rs/argon2`, AWS S3 SDK and `pdf-lib`.
+
+### Writing minutes from Zoom
+
+1. **Meeting Minutes → Write minutes.** Pick the meeting, or record it right there (date, title, time).
+2. Choose **Import Zoom**, then upload the Zoom notes PDF or paste the summary text.
+3. Review: choose a section for each topic (or *Don't include*), untick any next steps you don't want as tasks, set assignees and due dates, and confirm who was present.
+4. **Add to minutes.** Edit the wording if needed, then **Approve & Publish** (chair) or **Submit for chair review** (secretary).
+
+You can also start from a meeting's page (**Start from Zoom notes**) or from a draft (**Import from Zoom notes**). Importing adds to existing text; it never overwrites it.
 
 ---
 

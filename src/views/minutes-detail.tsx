@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, FileDown, History, Pencil, Send, Trash2, Undo2, Eye } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileDown, History, Pencil, Send, Trash2, Undo2, Eye, Video } from "lucide-react";
 import type { Actor } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { getOrganization } from "@/lib/org";
@@ -17,7 +17,7 @@ import { carriedForwardTasks, committeeRoster, loadMinutes } from "@/server/load
 import { MinutesDocument } from "./minutes-document";
 import { AttendanceEditor } from "./meeting-parts";
 
-export async function MinutesDetailView({ actor, id, editRequested }: { actor: Actor; id: string; editRequested: boolean }) {
+export async function MinutesDetailView({ actor, id, editRequested, imported = false }: { actor: Actor; id: string; editRequested: boolean; imported?: boolean }) {
   const scope = actor.kind === "admin" ? "admin" : "portal";
   const base = actor.kind === "admin" ? "/admin" : "/portal";
   const org = await getOrganization();
@@ -72,6 +72,20 @@ export async function MinutesDetailView({ actor, id, editRequested }: { actor: A
             <p className="prose-minutes text-sm">{m.reviewComments}</p>
           </div>
         </div>
+      )}
+
+      {imported && (
+        <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+          <p className="text-sm"><span className="font-semibold">Zoom notes added.</span> Read through each section, adjust the wording for the official record, then approve and publish when ready.</p>
+        </div>
+      )}
+
+      {canEditNow && s !== "PUBLISHED" && (
+        <Link href={`${base}/minutes/${m.id}/import`} className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-sm text-blue-900 hover:bg-blue-50">
+          <Video className="size-5 shrink-0" />
+          <span><span className="font-semibold">Import from Zoom notes</span> — fill in these minutes from the Zoom AI Companion summary (PDF or pasted text).</span>
+        </Link>
       )}
 
       {s !== "PUBLISHED" && <WorkflowPanel actor={actor} scope={scope} minutesId={m.id} status={s} committeeId={c} preparedBy={preparedBy} submittedAt={m.submittedAt} timeZone={org.timezone} />}

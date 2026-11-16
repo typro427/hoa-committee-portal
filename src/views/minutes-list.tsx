@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileDown, FileText } from "lucide-react";
+import { FileDown, FileText, PenLine } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { Actor } from "@/lib/session";
@@ -66,7 +66,13 @@ export async function MinutesListView({ actor, sp }: { actor: Actor; sp: SP }) {
 
   return (
     <>
-      <PageHeader title="Meeting Minutes" description={actor.kind === "admin" ? "Minutes across all committees" : "Official records of committee meetings"} />
+      <PageHeader
+        title="Meeting Minutes"
+        description={actor.kind === "admin" ? "Minutes across all committees" : "Official records of committee meetings"}
+        actions={leadership && (
+          <Link href={`${base}/minutes/new`} className={buttonVariants()}><PenLine /> Write minutes</Link>
+        )}
+      />
       {leadership && (
         <Tabs
           current={tab}

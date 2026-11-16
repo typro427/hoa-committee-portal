@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, FileDown, FileText, MapPin, Pencil, Plus, CalendarDays } from "lucide-react";
+import { Clock, FileDown, FileText, MapPin, Pencil, Plus, CalendarDays, Video } from "lucide-react";
 import type { Actor } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
@@ -8,7 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Options, Select } from "@/components/ui/form";
 import { formatDate, formatTimeRange, MEETING_STATUS_LABELS, MEETING_TYPE_LABELS } from "@/lib/format";
 import { setMeetingStatus } from "@/server/meeting-actions";
-import { createMinutes } from "@/server/minutes-actions";
+import { startMinutes } from "@/server/zoom-actions";
 import { committeeRoster, loadMeeting } from "@/server/loaders";
 import { AgendaEditor, AgendaView, AttendanceEditor, AttendanceView, DocList, UploadForm } from "./meeting-parts";
 
@@ -75,11 +75,14 @@ export async function MeetingDetailView({ actor, id }: { actor: Actor; id: strin
             </Link>
           </div>
         ) : !m.minutes && can.createMinutes(actor, c) ? (
-          <ActionForm action={createMinutes} className="flex flex-wrap items-center justify-between gap-3">
+          <ActionForm action={startMinutes} className="flex flex-wrap items-center justify-between gap-3">
             <ScopeInput scope={scope} />
             <input type="hidden" name="meetingId" value={m.id} />
             <p className="text-sm text-slate-600">Minutes haven&apos;t been started for this meeting.</p>
-            <SubmitButton pendingText="Creating…"><Plus /> Start minutes</SubmitButton>
+            <div className="flex flex-wrap gap-2">
+              <SubmitButton name="then" value="zoom" pendingText="Creating…"><Video /> Start from Zoom notes</SubmitButton>
+              <SubmitButton name="then" value="edit" variant="outline" pendingText="Creating…"><Plus /> Start minutes</SubmitButton>
+            </div>
           </ActionForm>
         ) : (
           <p className="text-sm text-slate-500">Minutes for this meeting have not been published yet.</p>
