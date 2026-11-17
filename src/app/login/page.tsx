@@ -4,7 +4,7 @@ import { PinLogin } from "@/components/pin-login";
 import { BrandMark } from "@/components/brand";
 import { loginWithPin } from "@/server/auth-actions";
 import { getMemberContext } from "@/lib/session";
-import { getOrganizationSafe } from "@/lib/org";
+import { getOrganization, orgAccess } from "@/lib/org";
 import { arbCommittee } from "@/server/arb";
 
 export const metadata = { title: "Sign In" };
@@ -12,7 +12,8 @@ export const metadata = { title: "Sign In" };
 export default async function LoginPage() {
   const ctx = await getMemberContext();
   if (ctx) redirect(ctx.active ? "/portal" : "/portal/select");
-  const org = await getOrganizationSafe();
+  const org = await getOrganization();
+  const access = orgAccess(org);
   const arb = await arbCommittee().catch(() => null);
 
   return (
@@ -24,8 +25,16 @@ export default async function LoginPage() {
           <h1 className="text-2xl font-bold text-navy-900">Committee Portal</h1>
           <p className="mt-1 text-sm text-slate-500">{org?.tagline ?? "Organized Committees. Better Decisions."}</p>
         </div>
-        <p className="mb-5 text-center text-base text-slate-700">Enter your 4-digit committee PIN</p>
-        <PinLogin action={loginWithPin} />
+        {access.active ? (
+          <>
+            <p className="mb-5 text-center text-base text-slate-700">Enter your 4-digit committee PIN</p>
+            <PinLogin action={loginWithPin} />
+          </>
+        ) : (
+          <p className="rounded-xl bg-amber-50 p-4 text-center text-sm text-amber-900">
+            {access.reason === "trial_ended" ? "This HOA's free trial has ended." : "This HOA's portal is currently unavailable."} Please contact your HOA administrator.
+          </p>
+        )}
       </div>
       {arb && (
         <Link href="/arb" className="mt-4 w-full max-w-md rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-navy-800 shadow-sm hover:border-navy-300">

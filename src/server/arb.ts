@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { can } from "@/lib/permissions";
 import type { Actor } from "@/lib/session";
 import { isUuid } from "./loaders";
+import { getOrganizationSafe, orgAccess } from "@/lib/org";
 
 export function newArbToken() {
   return randomBytes(24).toString("base64url");
@@ -14,10 +15,12 @@ export function hashArbToken(token: string) {
   return createHmac("sha256", env.sessionSecret).update(`arb:${token}`).digest("hex");
 }
 
-/** The committee that reviews resident requests (normally the Architectural Review Board). */
+/** The committee in this HOA that reviews resident requests (normally the Architectural Review Board). */
 export async function arbCommittee() {
+  const org = await getOrganizationSafe();
+  if (!org || !orgAccess(org).active) return null;
   return db.committee.findFirst({
-    where: { handlesArbRequests: true, status: "ACTIVE" },
+    where: { organizationId: org.id, handlesArbRequests: true, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },
     include: { organization: { select: { id: true, name: true, timezone: true, logoUrl: true } } },
   });
@@ -40,7 +43,11 @@ const requestInclude = {
 /** Resident access by private link. Returns null (→ 404) for unknown or malformed tokens. */
 export async function loadArbByToken(token: string) {
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null;
-  return db.arbRequest.findUnique({ where: { accessTokenHash: hashArbToken(token) }, include: requestInclude });
+  const org = await getOrganizationSafe();
+  if (!org) return null;
+  const r = await db.arbRequest.findUnique({ where: { accessTokenHash: hashArbToken(token) }, include: requestInclude });
+  // A link only works on its own HOA's address.
+  return r && r.committee.organizationId === org.id ? r : null;
 }
 
 /** Committee access: only members of the reviewing committee (or admins). */

@@ -6,12 +6,14 @@ import { BrandMark } from "@/components/brand";
 import { adminLogin } from "@/server/auth-actions";
 import { getAdminContext } from "@/lib/session";
 import { db } from "@/lib/db";
+import { getOrganization } from "@/lib/org";
 
 export const metadata = { title: "Administrator Sign In" };
 
 export default async function AdminLoginPage() {
   if (await getAdminContext()) redirect("/admin");
-  const noAdmins = (await db.adminUser.count()) === 0;
+  const org = await getOrganization();
+  const noAdmins = (await db.adminUser.count({ where: { organizationId: org.id } })) === 0;
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -19,7 +21,7 @@ export default async function AdminLoginPage() {
           <BrandMark className="size-10" />
           <div>
             <h1 className="text-lg font-bold text-navy-900">Administrator</h1>
-            <p className="text-sm text-slate-500">HOA Committee Portal</p>
+            <p className="text-sm text-slate-500">{org.name}</p>
           </div>
         </div>
         {noAdmins && (

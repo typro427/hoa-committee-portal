@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAdmin, revokeMemberSessions } from "@/lib/session";
+import { requireAdmin, revokeMemberSessions, type AdminActor } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { formObject, runAction, UserError, type ActionResult } from "@/lib/action";
 import { generatePin, hashSecret, pinLookup, verifySecret } from "@/lib/crypto";
@@ -12,6 +12,17 @@ import { getOrganization } from "@/lib/org";
 import { createDefaultFolders } from "./folders";
 
 const ROLE = z.enum(["CHAIR", "SECRETARY", "MEMBER"]);
+
+/** Records must belong to the signed-in administrator's own HOA. */
+function ownCommittee(admin: AdminActor, id: string) {
+  if (!admin.committeeIds.includes(id)) throw new UserError("Committee not found.");
+  return id;
+}
+async function ownMember(admin: AdminActor, id: string) {
+  const m = await db.member.findUnique({ where: { id }, select: { organizationId: true } });
+  if (!m || m.organizationId !== admin.organizationId) throw new UserError("Member not found.");
+  return id;
+}
 
 // ---------------- Committees ----------------
 
@@ -33,7 +44,7 @@ export async function createCommittee(_: ActionResult, fd: FormData): Promise<Ac
 export async function updateCommittee(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("committeeId"));
+    const id = ownCommittee(admin, z.string().uuid().parse(fd.get("committeeId")));
     const d = committeeSchema.parse(formObject(fd));
     const before = await db.committee.findUniqueOrThrow({ where: { id } });
     await db.committee.update({ where: { id }, data: { name: d.name, description: d.description ?? null } });
@@ -46,7 +57,7 @@ export async function updateCommittee(_: ActionResult, fd: FormData): Promise<Ac
 export async function setCommitteeStatus(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("committeeId"));
+    const id = ownCommittee(admin, z.string().uuid().parse(fd.get("committeeId")));
     const status = z.enum(["ACTIVE", "ARCHIVED"]).parse(fd.get("status"));
     await db.committee.update({ where: { id }, data: { status } });
     await audit(admin, { action: status === "ARCHIVED" ? "committee.archived" : "committee.reactivated", entityType: "committee", entityId: id, committeeId: id });
@@ -58,7 +69,7 @@ export async function setCommitteeStatus(_: ActionResult, fd: FormData): Promise
 export async function setCommitteeArb(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("committeeId"));
+    const id = ownCommittee(admin, z.string().uuid().parse(fd.get("committeeId")));
     const on = fd.get("handlesArbRequests") === "on";
     await db.committee.update({ where: { id }, data: { handlesArbRequests: on } });
     await audit(admin, { action: on ? "committee.arb_enabled" : "committee.arb_disabled", entityType: "committee", entityId: id, committeeId: id });
@@ -76,11 +87,11 @@ const memberSchema = z.object({
   phone: z.string().max(40).optional(),
 });
 
-async function setPinFor(memberId: string) {
+async function setPinFor(memberId: string, organizationId: string) {
   // Generate until unique (collisions are astronomically rare but handled).
   for (let i = 0; i < 200; i++) {
     const pin = generatePin();
-    const lookup = pinLookup(pin);
+    const lookup = pinLookup(pin, organizationId);
     if (await db.member.findUnique({ where: { pinLookup: lookup }, select: { id: true } })) continue;
     await db.member.update({ where: { id: memberId }, data: { pinHash: await hashSecret(pin), pinLookup: lookup, pinGeneratedAt: new Date() } });
     await revokeMemberSessions(memberId);
@@ -116,11 +127,11 @@ export async function createMember(_: ActionResult, fd: FormData): Promise<Actio
     const m = await db.member.create({
       data: { organizationId: org.id, firstName: d.firstName, lastName: d.lastName, email: d.email ?? null, phone: d.phone ?? null, status: d.status },
     });
-    if (d.committeeId) await assignRole(d.committeeId, m.id, d.role, d.position ?? null, false);
+    if (d.committeeId) await assignRole(ownCommittee(admin, d.committeeId), m.id, d.role, d.position ?? null, false);
     await audit(admin, { action: "member.created", entityType: "member", entityId: m.id, committeeId: d.committeeId ?? null, details: { name: `${m.firstName} ${m.lastName}`, role: d.role } });
     let pin: string | undefined;
     if (fd.get("generatePin") === "on") {
-      pin = await setPinFor(m.id);
+      pin = await setPinFor(m.id, admin.organizationId);
       await audit(admin, { action: "pin.generated", entityType: "member", entityId: m.id });
     }
     revalidatePath("/", "layout");
@@ -131,7 +142,7 @@ export async function createMember(_: ActionResult, fd: FormData): Promise<Actio
 export async function updateMember(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("memberId"));
+    const id = await ownMember(admin, z.string().uuid().parse(fd.get("memberId")));
     const d = memberSchema.parse(formObject(fd));
     await db.member.update({ where: { id }, data: { firstName: d.firstName, lastName: d.lastName, email: d.email ?? null, phone: d.phone ?? null } });
     await audit(admin, { action: "member.updated", entityType: "member", entityId: id });
@@ -143,7 +154,7 @@ export async function updateMember(_: ActionResult, fd: FormData): Promise<Actio
 export async function setMemberStatus(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("memberId"));
+    const id = await ownMember(admin, z.string().uuid().parse(fd.get("memberId")));
     const status = z.enum(["ACTIVE", "INACTIVE"]).parse(fd.get("status"));
     await db.member.update({ where: { id }, data: { status } });
     if (status === "INACTIVE") await revokeMemberSessions(id);
@@ -156,7 +167,7 @@ export async function setMemberStatus(_: ActionResult, fd: FormData): Promise<Ac
 export async function revokeSessions(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("memberId"));
+    const id = await ownMember(admin, z.string().uuid().parse(fd.get("memberId")));
     const { count } = await db.session.deleteMany({ where: { memberId: id } });
     await audit(admin, { action: "member.sessions_revoked", entityType: "member", entityId: id, details: { count } });
     revalidatePath("/", "layout");
@@ -173,8 +184,8 @@ export async function saveMembership(_: ActionResult, fd: FormData): Promise<Act
       role: ROLE,
       position: z.string().max(80).optional(),
     }).parse(formObject(fd));
-    const committee = await db.committee.findUnique({ where: { id: d.committeeId } });
-    if (!committee) throw new UserError("Committee not found.");
+    ownCommittee(admin, d.committeeId);
+    await ownMember(admin, d.memberId);
     const prevChair = d.role === "CHAIR"
       ? await db.committeeMembership.findFirst({ where: { committeeId: d.committeeId, role: "CHAIR", isActive: true, NOT: { memberId: d.memberId } }, include: { member: true } })
       : null;
@@ -189,6 +200,9 @@ export async function removeMembership(_: ActionResult, fd: FormData): Promise<A
   return runAction(async () => {
     const admin = await requireAdmin();
     const id = z.string().uuid().parse(fd.get("membershipId"));
+    const existing = await db.committeeMembership.findUnique({ where: { id }, select: { committeeId: true } });
+    if (!existing) throw new UserError("Not found.");
+    ownCommittee(admin, existing.committeeId);
     const ms = await db.committeeMembership.update({ where: { id }, data: { isActive: false, leftAt: new Date(), role: "MEMBER", canPublishMinutes: false } });
     await audit(admin, { action: "membership.removed", entityType: "member", entityId: ms.memberId, committeeId: ms.committeeId });
     revalidatePath("/", "layout");
@@ -201,10 +215,10 @@ export async function removeMembership(_: ActionResult, fd: FormData): Promise<A
 export async function generateMemberPin(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("memberId"));
+    const id = await ownMember(admin, z.string().uuid().parse(fd.get("memberId")));
     const m = await db.member.findUnique({ where: { id }, select: { firstName: true, lastName: true, pinHash: true, status: true } });
     if (!m) throw new UserError("Member not found.");
-    const pin = await setPinFor(id);
+    const pin = await setPinFor(id, admin.organizationId);
     await audit(admin, { action: m.pinHash ? "pin.reset" : "pin.generated", entityType: "member", entityId: id });
     revalidatePath("/", "layout");
     return {
@@ -218,7 +232,7 @@ export async function generateMemberPin(_: ActionResult, fd: FormData): Promise<
 export async function revokeMemberPin(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const admin = await requireAdmin();
-    const id = z.string().uuid().parse(fd.get("memberId"));
+    const id = await ownMember(admin, z.string().uuid().parse(fd.get("memberId")));
     await db.member.update({ where: { id }, data: { pinHash: null, pinLookup: null, pinGeneratedAt: null } });
     await revokeMemberSessions(id);
     await audit(admin, { action: "pin.revoked", entityType: "member", entityId: id });
@@ -231,7 +245,7 @@ export async function bulkGeneratePins(_: ActionResult, fd: FormData): Promise<A
   return runAction(async () => {
     const admin = await requireAdmin();
     const org = await getOrganization();
-    const committeeId = fd.get("committeeId") ? z.string().uuid().parse(fd.get("committeeId")) : undefined;
+    const committeeId = fd.get("committeeId") ? ownCommittee(admin, z.string().uuid().parse(fd.get("committeeId"))) : undefined;
     const replaceExisting = fd.get("replaceExisting") === "on";
     const members = await db.member.findMany({
       where: {
@@ -244,7 +258,7 @@ export async function bulkGeneratePins(_: ActionResult, fd: FormData): Promise<A
     const out: { name: string; committees: string; pin: string }[] = [];
     for (const m of members) {
       const hadPin = !!m.pinHash;
-      const pin = await setPinFor(m.id);
+      const pin = await setPinFor(m.id, admin.organizationId);
       out.push({ name: `${m.firstName} ${m.lastName}`, committees: m.memberships.map((x) => x.committee.name).join(", "), pin });
       await audit(admin, { action: hadPin ? "pin.reset" : "pin.generated", entityType: "member", entityId: m.id, details: { bulk: true } });
     }
@@ -283,7 +297,8 @@ export async function createAdminUser(_: ActionResult, fd: FormData): Promise<Ac
   return runAction(async () => {
     const admin = await requireAdmin();
     const d = z.object({ name: z.string().min(2).max(100), email: z.string().trim().toLowerCase().email(), password: passwordSchema }).parse(formObject(fd));
-    const a = await db.adminUser.create({ data: { name: d.name, email: d.email, passwordHash: await hashSecret(d.password) } });
+    if (await db.adminUser.findUnique({ where: { organizationId_email: { organizationId: admin.organizationId, email: d.email } } })) throw new UserError("That email is already an administrator here.");
+    const a = await db.adminUser.create({ data: { organizationId: admin.organizationId, name: d.name, email: d.email, passwordHash: await hashSecret(d.password) } });
     await audit(admin, { action: "admin.created", entityType: "admin_user", entityId: a.id, details: { email: a.email } });
     revalidatePath("/", "layout");
     return { ok: true, message: `Administrator ${a.email} created.` };
@@ -296,7 +311,9 @@ export async function setAdminStatus(_: ActionResult, fd: FormData): Promise<Act
     const id = z.string().uuid().parse(fd.get("adminId"));
     const status = z.enum(["ACTIVE", "DISABLED"]).parse(fd.get("status"));
     if (id === admin.adminId) throw new UserError("You can't disable your own account.");
-    if (status === "DISABLED" && (await db.adminUser.count({ where: { status: "ACTIVE" } })) <= 1) throw new UserError("At least one active administrator is required.");
+    const target = await db.adminUser.findUnique({ where: { id }, select: { organizationId: true } });
+    if (!target || target.organizationId !== admin.organizationId) throw new UserError("Administrator not found.");
+    if (status === "DISABLED" && (await db.adminUser.count({ where: { organizationId: admin.organizationId, status: "ACTIVE" } })) <= 1) throw new UserError("At least one active administrator is required.");
     await db.adminUser.update({ where: { id }, data: { status } });
     if (status === "DISABLED") await db.session.deleteMany({ where: { adminUserId: id } });
     await audit(admin, { action: status === "DISABLED" ? "admin.disabled" : "admin.enabled", entityType: "admin_user", entityId: id });

@@ -13,13 +13,18 @@ export class ForbiddenError extends Error {
   }
 }
 
+/** An HOA administrator, acting on a committee in their own HOA. */
+function adminOf(a: Actor, committeeId: string) {
+  return a.kind === "admin" && a.committeeIds.includes(committeeId);
+}
+
 export function isAdmin(a: Actor) {
   return a.kind === "admin";
 }
 
-/** Member actors may only touch records in their active committee. */
+/** Members may only touch records in their active committee; admins only within their own HOA. */
 export function inCommittee(a: Actor, committeeId: string) {
-  return a.kind === "admin" || a.committeeId === committeeId;
+  return adminOf(a, committeeId) || (a.kind === "member" && a.committeeId === committeeId);
 }
 
 export function isChair(a: Actor, committeeId: string) {
@@ -27,26 +32,26 @@ export function isChair(a: Actor, committeeId: string) {
 }
 
 export function isLeadership(a: Actor, committeeId: string) {
-  return a.kind === "admin" || (a.kind === "member" && a.committeeId === committeeId && (a.role === "CHAIR" || a.role === "SECRETARY"));
+  return adminOf(a, committeeId) || (a.kind === "member" && a.committeeId === committeeId && (a.role === "CHAIR" || a.role === "SECRETARY"));
 }
 
 export const can = {
   viewCommittee: (a: Actor, c: string) => inCommittee(a, c),
-  manageMeetings: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
+  manageMeetings: (a: Actor, c: string) => adminOf(a, c) || isChair(a, c),
   manageAgenda: (a: Actor, c: string) => isLeadership(a, c),
   recordAttendance: (a: Actor, c: string) => isLeadership(a, c),
   viewDraftMinutes: (a: Actor, c: string) => isLeadership(a, c),
   createMinutes: (a: Actor, c: string) => isLeadership(a, c),
   editDraftMinutes: (a: Actor, c: string) => isLeadership(a, c),
-  reviewMinutes: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
+  reviewMinutes: (a: Actor, c: string) => adminOf(a, c) || isChair(a, c),
   publishMinutes: (a: Actor, c: string) =>
-    isAdmin(a) ||
+    adminOf(a, c) ||
     isChair(a, c) ||
     (a.kind === "member" && a.committeeId === c && a.role === "SECRETARY" && a.canPublishMinutes),
-  amendPublishedMinutes: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
+  amendPublishedMinutes: (a: Actor, c: string) => adminOf(a, c) || isChair(a, c),
   viewRevisions: (a: Actor) => isAdmin(a),
   manageDocuments: (a: Actor, c: string) => isLeadership(a, c),
-  manageFolders: (a: Actor, c: string) => isAdmin(a) || isChair(a, c),
+  manageFolders: (a: Actor, c: string) => adminOf(a, c) || isChair(a, c),
   /** ARB requests: every member of the reviewing committee can view and add internal notes. */
   viewArb: (a: Actor, c: string) => inCommittee(a, c),
   /** Changing stages, messaging residents, uploading, and resetting links: chair, secretary, or admin. */

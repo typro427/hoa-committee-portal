@@ -44,6 +44,19 @@ services:
         generateValue: true   # Copy from the dashboard to use /admin/setup once; then delete it.
       - key: ORG_NAME
         value: "Our HOA"
+      # ---- Selling to many HOAs (see README "Running it for many HOAs") ----
+      # Your brand's domain, e.g. committeedesk.com. Leave empty to keep single-HOA mode.
+      - key: ROOT_DOMAIN
+        sync: false
+      # Your software's name, shown on the main site and owner console.
+      - key: PLATFORM_NAME
+        sync: false
+      # Optional: email for the "Contact sales" link on the main site.
+      - key: SALES_EMAIL
+        sync: false
+      # Optional: which HOA the onrender.com address shows once ROOT_DOMAIN is set (e.g. your first HOA's slug).
+      - key: DEFAULT_ORG_SLUG
+        sync: false
       - key: ORG_TIMEZONE
         value: America/New_York
       - key: APP_URL

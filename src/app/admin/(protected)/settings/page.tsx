@@ -14,7 +14,7 @@ export const metadata = { title: "Settings" };
 export default async function SettingsPage() {
   const me = await requireAdmin();
   const org = await getOrganization();
-  const admins = await db.adminUser.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true, status: true, lastLoginAt: true } });
+  const admins = await db.adminUser.findMany({ where: { organizationId: org.id }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true, status: true, lastLoginAt: true } });
   const storage = await storageHealth();
   return (
     <div className="flex flex-col gap-5">

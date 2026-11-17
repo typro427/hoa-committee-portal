@@ -3,12 +3,14 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, Input } from "@/components/ui/form";
 import { setupFirstAdmin } from "@/server/auth-actions";
 import { db } from "@/lib/db";
+import { getOrganization } from "@/lib/org";
 
 export const metadata = { title: "First-time Setup" };
 export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
-  if ((await db.adminUser.count()) > 0) redirect("/admin/login");
+  const org = await getOrganization();
+  if ((await db.adminUser.count({ where: { organizationId: org.id } })) > 0) redirect("/admin/login");
   const enabled = !!process.env.SETUP_TOKEN;
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">

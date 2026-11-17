@@ -3,7 +3,7 @@
  * and prints each sample member's PIN. Remove before going live:
  *   npm run db:clear-sample -- --confirm
  */
-import { argon, pinLookup, prisma, randomPin } from "../scripts/_shared";
+import { argon, pinLookup, prisma, randomPin, resolveOrg } from "../scripts/_shared";
 
 const PEOPLE: Record<string, { first: string; last: string; role: "CHAIR" | "SECRETARY" | "MEMBER"; position?: string }[]> = {
   "Safety and Security Committee": [
@@ -33,8 +33,7 @@ const day = (offset: number) => {
 
 async function main() {
   const db = prisma();
-  const org = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
-  if (!org) throw new Error("Run `npm run db:seed` first.");
+  const org = await resolveOrg(db);
   const committees = await db.committee.findMany({ where: { organizationId: org.id } });
   const pins: string[] = [];
   const used = new Set<string>();
@@ -55,7 +54,7 @@ async function main() {
         data: {
           organizationId: org.id, firstName: p.first, lastName: p.last,
           email: `${p.first.toLowerCase()}.${p.last.toLowerCase()}@example.com`,
-          pinHash: await argon(pin), pinLookup: pinLookup(pin), pinGeneratedAt: new Date(),
+          pinHash: await argon(pin), pinLookup: pinLookup(pin, org.id), pinGeneratedAt: new Date(),
         },
       });
       await db.committeeMembership.create({ data: { committeeId: c.id, memberId: m.id, role: p.role, position: p.position ?? null } });

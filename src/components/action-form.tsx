@@ -43,8 +43,11 @@ export function ActionForm({
       <form
         ref={ref}
         className={className}
-        // Submitting through the action dispatcher (instead of <form action>) keeps what the
-        // person typed if the server returns a validation error. React would otherwise clear the form.
+        // `action` makes the server render a safe POST form, so a tap before the page finishes loading
+        // still submits correctly (never as a GET that would put fields like passwords in the URL).
+        action={dispatch}
+        // Once loaded, we submit through the dispatcher ourselves: this keeps what the person typed
+        // if the server returns a validation error (React would otherwise clear the form).
         onSubmit={(e) => {
           e.preventDefault();
           if (pending) return;

@@ -1,0 +1,10 @@
+import { createHmac } from "node:crypto";
+import { argon, prisma } from "./scripts/_shared.ts";
+const db = prisma();
+const org = await db.organization.findUniqueOrThrow({ where: { slug: "willow-creek-hoa" } });
+const c = await db.committee.findFirstOrThrow({ where: { organizationId: org.id, name: "Special Events Committee" } });
+const legacy = createHmac("sha256", process.env.PIN_HASH_SECRET!).update("pin:73519284").digest("hex");
+await db.member.deleteMany({ where: { firstName: "Legacy", lastName: "User" } });
+const m = await db.member.create({ data: { organizationId: org.id, firstName: "Legacy", lastName: "User", pinHash: await argon("73519284"), pinLookup: legacy, pinGeneratedAt: new Date() } });
+await db.committeeMembership.create({ data: { committeeId: c.id, memberId: m.id } });
+await db.$disconnect();

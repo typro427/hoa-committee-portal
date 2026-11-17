@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { getOrganization } from "@/lib/org";
-import { isUuid } from "@/server/loaders";
+import { isUuid, loadMinutes } from "@/server/loaders";
 import { PageHeader } from "@/components/common";
 import { PrintButton } from "@/components/print-button";
 import { formatDateTime } from "@/lib/format";
@@ -12,9 +12,10 @@ import { MinutesDocument } from "@/views/minutes-document";
 export const metadata = { title: "Minutes Revision" };
 
 export default async function RevisionPage({ params }: { params: Promise<{ id: string; rev: string }> }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const { id, rev } = await params;
   if (!isUuid(id) || !/^\d+$/.test(rev)) notFound();
+  await loadMinutes(admin, id); // 404 unless these minutes belong to this HOA
   const org = await getOrganization();
   const r = await db.meetingMinuteRevision.findUnique({ where: { minutesId_revisionNumber: { minutesId: id, revisionNumber: Number(rev) } } });
   if (!r) notFound();

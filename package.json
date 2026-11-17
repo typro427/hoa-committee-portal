@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:sample": "tsx prisma/seed-sample.ts",
     "db:clear-sample": "tsx scripts/clear-sample-data.ts",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "owner:create": "tsx scripts/create-owner.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1169.0",

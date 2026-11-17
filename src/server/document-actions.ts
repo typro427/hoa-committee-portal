@@ -135,8 +135,8 @@ export async function restoreDocument(_: ActionResult, fd: FormData): Promise<Ac
   return runAction(async () => {
     const actor = await requireActor("admin");
     const id = String(fd.get("documentId"));
-    const doc = await db.document.findUnique({ where: { id } });
-    if (!doc) throw new UserError("Document not found.");
+    const doc = isUuid(id) ? await db.document.findUnique({ where: { id } }) : null;
+    if (!doc || !can.viewCommittee(actor, doc.committeeId)) throw new UserError("Document not found.");
     await db.document.update({ where: { id }, data: { removedAt: null } });
     await audit(actor, { action: "document.restored", entityType: "document", entityId: id, committeeId: doc.committeeId, details: { title: doc.title } });
     revalidatePath("/", "layout");

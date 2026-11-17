@@ -33,7 +33,12 @@ export function generatePin(length = PIN_LENGTH): string {
  * Deterministic keyed lookup value for a PIN. Lets us find the member in O(1)
  * without storing the PIN; the Argon2id hash is still verified afterwards.
  */
-export function pinLookup(pin: string): string {
+export function pinLookup(pin: string, organizationId: string): string {
+  return createHmac("sha256", env.pinHashSecret).update(`pin:${organizationId}:${pin}`).digest("hex");
+}
+
+/** PINs issued before multi-HOA support were keyed without the HOA. Still accepted for that HOA's members. */
+export function legacyPinLookup(pin: string): string {
   return createHmac("sha256", env.pinHashSecret).update(`pin:${pin}`).digest("hex");
 }
 
@@ -60,9 +65,9 @@ export function newSessionToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
-export function hashSessionToken(token: string, kind: "member" | "admin"): string {
-  const secret = kind === "admin" ? env.adminAuthSecret : env.sessionSecret;
-  return createHmac("sha256", secret).update(token).digest("hex");
+export function hashSessionToken(token: string, kind: "member" | "admin" | "platform"): string {
+  const secret = kind === "member" ? env.sessionSecret : env.adminAuthSecret;
+  return createHmac("sha256", secret).update(kind === "platform" ? `platform:${token}` : token).digest("hex");
 }
 
 export function safeEqual(a: string, b: string): boolean {

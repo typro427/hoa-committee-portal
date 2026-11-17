@@ -15,6 +15,15 @@ datasource db {
 
 // ---------- Enums ----------
 
+/// Subscription state of an HOA on the platform.
+enum OrgStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
 enum CommitteeStatus {
   ACTIVE
   ARCHIVED
@@ -153,12 +162,19 @@ model Organization {
   timezone              String   @default("America/New_York")
   tagline               String?  @default("Organized Committees. Better Decisions.")
   sessionTimeoutMinutes Int      @default(60) @map("session_timeout_minutes")
+  status                OrgStatus @default(ACTIVE)
+  trialEndsAt           DateTime? @map("trial_ends_at")
+  /// Billing / account contact for the platform owner.
+  contactName           String?   @map("contact_name")
+  contactEmail          String?   @map("contact_email")
+  ownerNotes            String?   @map("owner_notes")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
   committees Committee[]
   members    Member[]
   auditLogs  AuditLog[]
+  admins     AdminUser[]
 
   @@map("organizations")
 }
@@ -547,10 +563,12 @@ model MeetingMinuteRevision {
   @@map("meeting_minute_revisions")
 }
 
+/// An HOA's own administrator. Each one belongs to exactly one HOA.
 model AdminUser {
-  id           String      @id @default(uuid()) @db.Uuid
-  email        String      @unique
-  passwordHash String      @map("password_hash")
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String      @map("organization_id") @db.Uuid
+  email          String
+  passwordHash   String      @map("password_hash")
   name         String
   status       AdminStatus @default(ACTIVE)
   lastLoginAt  DateTime?   @map("last_login_at")
@@ -565,7 +583,9 @@ model AdminUser {
   approvedMinutes  MeetingMinutes[]        @relation("MinutesApprovedByAdmin")
   minuteRevisions  MeetingMinuteRevision[]
   auditLogs        AuditLog[]
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
+  @@unique([organizationId, email])
   @@map("admin_users")
 }
 
@@ -573,6 +593,7 @@ model Session {
   id                String     @id @default(uuid()) @db.Uuid
   memberId          String?    @map("member_id") @db.Uuid
   adminUserId       String?    @map("admin_user_id") @db.Uuid
+  platformUserId    String?    @map("platform_user_id") @db.Uuid
   /// SHA-256 of the random session token; the raw token only lives in the HTTP-only cookie.
   tokenHash         String     @unique @map("token_hash")
   activeCommitteeId String?    @map("active_committee_id") @db.Uuid
@@ -582,13 +603,31 @@ model Session {
   userAgent         String?    @map("user_agent")
   createdAt         DateTime   @default(now()) @map("created_at")
 
-  member    Member?    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  adminUser AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  member       Member?       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  adminUser    AdminUser?    @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
+  @@index([platformUserId])
   @@index([adminUserId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+/// The software's owner (you): manages every HOA from the owner console. Not tied to any HOA.
+model PlatformUser {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  name         String
+  status       AdminStatus @default(ACTIVE)
+  lastLoginAt  DateTime?   @map("last_login_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  sessions Session[]
+
+  @@map("platform_users")
 }
 
 /// Failed/successful login attempts, used for rate limiting and temporary lockouts.

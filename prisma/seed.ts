@@ -21,7 +21,7 @@ async function main() {
     org = await db.organization.create({
       data: {
         name: process.env.ORG_NAME || "Our HOA",
-        slug: (process.env.ORG_NAME || "our-hoa").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+        slug: (process.env.ORG_SLUG || process.env.ORG_NAME || "our-hoa").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
         timezone: process.env.ORG_TIMEZONE || "America/New_York",
       },
     });

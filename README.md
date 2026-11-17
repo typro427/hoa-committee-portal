@@ -47,6 +47,37 @@ You can also start from a meeting's page (**Start from Zoom notes**) or from a d
 
 ---
 
+## Running it for many HOAs
+
+The same deployment can serve any number of HOAs. Each one gets its own address and its own private data.
+
+| Address | What it shows |
+|---|---|
+| `yourbrand.com` | Main site: what the software does, plus **Find your HOA** |
+| `yourbrand.com/platform` | **Owner console** (you): every HOA, create HOAs, trials, suspend/reactivate |
+| `deerfield.yourbrand.com` | That HOA's member sign-in, admin area (`/admin`), and resident ARB form (`/arb`) |
+
+**How HOAs are kept apart**
+- Every page, download, and action checks the HOA in the web address. HOA administrators can only reach their own HOA's committees, members, and records, and sign-in cookies only work on the address that issued them.
+- PINs are unique within each HOA; the same 4 digits at two HOAs are different people. PINs issued before this update keep working at their own HOA.
+- Sign-in lockouts are per HOA, so trouble at one HOA can't lock out another.
+- A suspended, cancelled, or expired-trial HOA keeps its data. Members and residents see an "unavailable" notice, and its administrators can still sign in.
+
+**Switching on multi-HOA mode**
+1. Buy your brand's domain.
+2. In Render → your web service → **Settings → Custom Domains**, add **both** `yourbrand.com` and `*.yourbrand.com`, then add the DNS records Render shows you at your domain registrar. Render issues the security certificates automatically, including for the wildcard. The bare domain must point to Render too, or the wildcard won't work.
+3. In **Environment**, set `ROOT_DOMAIN=yourbrand.com` and `PLATFORM_NAME` to your brand name, then redeploy.
+4. Create your owner account: open `https://yourbrand.com/platform/setup` and enter the `SETUP_TOKEN`, or run `npm run owner:create -- --email you@yourbrand.com --name "Your Name"` in the Render Shell.
+5. Your existing HOA keeps its data. Its address is `<slug>.yourbrand.com`; change the slug in the owner console (for example to `deerfield`). To keep the old `onrender.com` link working during the switch, set `DEFAULT_ORG_SLUG` to that slug.
+
+**Adding a customer HOA:** Owner console → **New HOA**. Enter the name, address, trial length, and the first administrator's email with a temporary password. You can also start them with ARB, Safety & Security, and Special Events committees. Then send that administrator the sign-in link shown.
+
+**Installing on phones:** each HOA's address is installable. On iPhone, open it in Safari, tap Share, then **Add to Home Screen**. On Android, open it in Chrome and tap **Install app**. It opens full screen with the HOA's own name. App Store and Google Play versions come in Phase 3.
+
+**Command-line tools are per HOA:** `npm run admin:create`, `npm run db:seed:sample`, and `npm run db:clear-sample` take `--org <slug>` once there's more than one HOA. `db:clear-sample` only ever touches the HOA you name.
+
+---
+
 ## Run locally
 
 Requirements: Node 20.11+ (22 recommended) and PostgreSQL 14+.
