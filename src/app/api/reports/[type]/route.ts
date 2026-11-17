@@ -3,6 +3,7 @@ import { getAdminContext } from "@/lib/session";
 import { getOrganization } from "@/lib/org";
 import { csvResponse, pdfResponse } from "@/lib/pdf";
 import { audit } from "@/lib/audit";
+import { isNativeApp } from "@/lib/native-app";
 import { buildReport, defaultRange, REPORT_TYPES, reportToCsv, reportToPdf, type ReportType } from "@/server/reports";
 
 export const dynamic = "force-dynamic";
@@ -25,5 +26,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ type: st
   const format = sp.get("format") === "pdf" ? "pdf" : "csv";
   await audit(admin, { action: "report.exported", entityType: "report", entityId: type, committeeId: p.committeeId ?? null, details: { format, ...p } });
   const name = `${report.title} ${p.from} to ${p.to}`;
-  return format === "pdf" ? pdfResponse(await reportToPdf(report), `${name}.pdf`) : csvResponse(reportToCsv(report), `${name}.csv`);
+  return format === "pdf" ? pdfResponse(await reportToPdf(report), `${name}.pdf`, await isNativeApp()) : csvResponse(reportToCsv(report), `${name}.csv`);
 }

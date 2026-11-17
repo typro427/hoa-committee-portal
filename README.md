@@ -78,6 +78,12 @@ The same deployment can serve any number of HOAs. Each one gets its own address 
 
 ---
 
+## iPhone app (Xcode / TestFlight)
+
+The `mobile/` folder is an iPhone app that opens the live portal. Open `mobile/ios/App/App.xcodeproj` in Xcode to run it on your phone or upload it to TestFlight. No Node or npm is needed on the Mac. Step-by-step instructions are in **[mobile/README.md](mobile/README.md)**.
+
+---
+
 ## Run locally
 
 Requirements: Node 20.11+ (22 recommended) and PostgreSQL 14+.

@@ -7,6 +7,7 @@ import { PageHeader, RoleBadge, Section } from "@/components/common";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { logoutMember } from "@/server/auth-actions";
+import { APP_SWITCH_HOA_URL, isNativeApp } from "@/lib/native-app";
 
 export const metadata = { title: "My Profile" };
 
@@ -42,6 +43,7 @@ export default async function ProfilePage() {
           {actor.memberships.length > 1 && <Link href="/portal/select" className={buttonVariants({ variant: "outline", className: "mt-3" })}>Switch committee</Link>}
         </Section>
         <form action={logoutMember}><Button variant="outline" size="lg" className="w-full sm:w-auto"><LogOut /> Sign out</Button></form>
+        {(await isNativeApp()) && <a href={APP_SWITCH_HOA_URL} className="text-center text-sm font-medium text-navy-700">Switch to a different HOA</a>}
       </div>
     </>
   );

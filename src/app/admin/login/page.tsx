@@ -7,6 +7,7 @@ import { adminLogin } from "@/server/auth-actions";
 import { getAdminContext } from "@/lib/session";
 import { db } from "@/lib/db";
 import { getOrganization } from "@/lib/org";
+import { APP_SWITCH_HOA_URL, isNativeApp } from "@/lib/native-app";
 
 export const metadata = { title: "Administrator Sign In" };
 
@@ -39,6 +40,7 @@ export default async function AdminLoginPage() {
           <SubmitButton pendingText="Signing in…">Sign In</SubmitButton>
         </ActionForm>
         <Link href="/login" className="mt-5 block text-center text-sm text-slate-500 hover:text-navy-700">← Committee member sign-in</Link>
+        {(await isNativeApp()) && <a href={APP_SWITCH_HOA_URL} className="mt-2 block text-center text-sm font-medium text-navy-700">Switch HOA</a>}
       </div>
     </main>
   );

@@ -1,6 +1,7 @@
 import { loadArbByToken } from "@/server/arb";
 import { getDownload } from "@/lib/storage";
 import { isUuid } from "@/server/loaders";
+import { isNativeApp } from "@/lib/native-app";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const r = isUuid(id) ? await loadArbByToken(token) : null;
   const doc = r?.documents.find((d) => d.id === id);
   if (!doc) return new Response("Not found", { status: 404 });
-  const target = await getDownload(doc, new URL(req.url).searchParams.get("inline") === "1");
+  const target = await getDownload(doc, new URL(req.url).searchParams.get("inline") === "1" || (await isNativeApp()));
   if (target.type === "redirect") return Response.redirect(target.url, 302);
   return new Response(new Uint8Array(target.body), {
     headers: {

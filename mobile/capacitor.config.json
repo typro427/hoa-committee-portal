@@ -1,0 +1,25 @@
+{
+  "appId": "com.hoacommitteeportal.app",
+  "appName": "HOA Committees",
+  "webDir": "www",
+  "backgroundColor": "#152340",
+  "loggingBehavior": "debug",
+  "server": {
+    "allowNavigation": [
+      "*"
+    ],
+    "errorPath": "error.html"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#152340",
+    "appendUserAgent": "HOACommitteeApp/1.0",
+    "limitsNavigationsToAppBoundDomains": false,
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

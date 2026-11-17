@@ -2,6 +2,7 @@ import { getRouteActor } from "@/lib/session";
 import { loadDocument } from "@/server/loaders";
 import { getDownload } from "@/lib/storage";
 import { audit } from "@/lib/audit";
+import { isNativeApp } from "@/lib/native-app";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   } catch {
     return new Response("Not found", { status: 404 });
   }
-  const inline = new URL(req.url).searchParams.get("inline") === "1";
+  const inline = new URL(req.url).searchParams.get("inline") === "1" || (await isNativeApp());
   await audit(actor, { action: "document.downloaded", entityType: "document", entityId: doc.id, committeeId: doc.committeeId });
   const target = await getDownload(doc, inline);
   if (target.type === "redirect") return Response.redirect(target.url, 302);

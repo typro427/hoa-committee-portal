@@ -1,0 +1,11 @@
+App/build
+App/Pods
+App/output
+DerivedData
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# Note: App/App/public and App/App/capacitor.config.json ARE committed on purpose,
+# so the project opens and builds in Xcode without installing Node/npm.

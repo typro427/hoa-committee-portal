@@ -6,6 +6,7 @@ import { loginWithPin } from "@/server/auth-actions";
 import { getMemberContext } from "@/lib/session";
 import { getOrganization, orgAccess } from "@/lib/org";
 import { arbCommittee } from "@/server/arb";
+import { APP_SWITCH_HOA_URL, isNativeApp } from "@/lib/native-app";
 
 export const metadata = { title: "Sign In" };
 
@@ -45,6 +46,12 @@ export default async function LoginPage() {
         Forgot your PIN? Contact your HOA administrator.
         <br />
         <Link href="/admin/login" className="mt-2 inline-block text-slate-400 hover:text-navy-700">Administrator sign-in</Link>
+        {(await isNativeApp()) && (
+          <>
+            <br />
+            <a href={APP_SWITCH_HOA_URL} className="mt-3 inline-block font-medium text-navy-700">Switch HOA</a>
+          </>
+        )}
       </p>
     </main>
   );
